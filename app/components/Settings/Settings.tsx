@@ -171,6 +171,7 @@ export function Settings() {
               contextLength={contextLength}
               setContextLength={setContextLength}
               maxContextLength={maxContextLength}
+              hardwareTierMax={getOptimalSettingsForTier(hardwareInfo.vramTier).maxContextPotential}
               onRefresh={fetchModelInfo}
             />
           )}
@@ -315,6 +316,7 @@ interface ModelSettingsTabProps {
   contextLength: number;
   setContextLength: (length: number) => void;
   maxContextLength: number;
+  hardwareTierMax: number; // Max context your hardware can handle
   onRefresh: () => void;
 }
 
@@ -324,6 +326,7 @@ function ModelSettingsTab({
   contextLength,
   setContextLength,
   maxContextLength,
+  hardwareTierMax,
   onRefresh,
 }: ModelSettingsTabProps) {
   const formatSize = (bytes: number): string => {
@@ -373,16 +376,27 @@ function ModelSettingsTab({
           value={contextLength}
           onChange={setContextLength}
           min={1024}
-          max={maxContextLength}
+          max={hardwareTierMax} // Use hardware tier max, not model limit
           step={1024}
           displayValue={`${contextLength.toLocaleString()} tokens`}
         />
         
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          <div className="p-2 bg-sidebar-bg rounded">
+            <span className="text-text-secondary">Model&apos;s Default: </span>
+            <span className="text-text-primary font-mono">{maxContextLength.toLocaleString()}</span>
+          </div>
+          <div className="p-2 bg-accent/10 rounded">
+            <span className="text-text-secondary">Your HW Max: </span>
+            <span className="text-accent font-mono">{hardwareTierMax.toLocaleString()}</span>
+          </div>
+        </div>
+        
         <div className="mt-3 flex items-start gap-2 text-xs text-text-secondary">
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <p>
-            Higher context allows more document content and conversation history,
-            but requires more VRAM. Reduce if you experience slowdowns.
+            Your RTX 5090 can handle up to {hardwareTierMax.toLocaleString()} tokens! 
+            Set this based on your needs. Higher = more document context, but may slow generation.
           </p>
         </div>
       </div>
