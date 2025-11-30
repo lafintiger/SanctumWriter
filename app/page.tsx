@@ -2,8 +2,9 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorView } from '@codemirror/view';
-import { Editor, FileTree, Chat, Header, Preview, Toast, Settings } from './components';
+import { Editor, FileTree, Chat, Header, Preview, Toast, Settings, CouncilPanel } from './components';
 import { useAppStore } from '@/lib/store/useAppStore';
+import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -15,6 +16,8 @@ export default function Home() {
     setSidebarWidth,
     setChatPanelWidth,
   } = useAppStore();
+  
+  const { showCouncilPanel } = useCouncilStore();
 
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -114,6 +117,13 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Council Panel */}
+        {showCouncilPanel && (
+          <div className="flex-shrink-0 w-80">
+            <CouncilPanel />
+          </div>
+        )}
 
         {/* Chat panel */}
         {showChat && (

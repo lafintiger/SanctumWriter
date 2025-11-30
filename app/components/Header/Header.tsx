@@ -10,11 +10,13 @@ import {
   Settings as SettingsIcon,
   Wifi,
   WifiOff,
-  ChevronDown
+  ChevronDown,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useSettingsStore } from '@/lib/store/useSettingsStore';
+import { useCouncilStore } from '@/lib/store/useCouncilStore';
 
 export function Header() {
   const {
@@ -35,6 +37,8 @@ export function Header() {
   } = useAppStore();
 
   const { toggleSettings, writingPreset, contextLength, contextUsed } = useSettingsStore();
+  const { showCouncilPanel, toggleCouncilPanel, getEnabledReviewers } = useCouncilStore();
+  const enabledReviewersCount = getEnabledReviewers().length;
   
   const [providerStatus, setProviderStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [showProviderMenu, setShowProviderMenu] = useState(false);
@@ -212,6 +216,24 @@ export function Header() {
           title="Toggle chat"
         >
           <MessageSquare className="w-5 h-5" />
+        </button>
+        
+        <button
+          onClick={toggleCouncilPanel}
+          className={cn(
+            'p-1.5 rounded relative',
+            showCouncilPanel
+              ? 'bg-accent/20 text-accent'
+              : 'hover:bg-border text-text-secondary hover:text-text-primary'
+          )}
+          title="Council of Writers"
+        >
+          <Users className="w-5 h-5" />
+          {enabledReviewersCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[10px] rounded-full flex items-center justify-center">
+              {enabledReviewersCount}
+            </span>
+          )}
         </button>
 
         <button
