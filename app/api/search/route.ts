@@ -10,12 +10,12 @@ const SEARXNG_URL = process.env.SEARXNG_URL || 'http://localhost:4000';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { engine, query, focusMode, optimizationMode } = body;
+    const { engine, query, focusMode, optimizationMode, generateSummary = true } = body;
     
     if (engine === 'perplexica') {
       return await searchPerplexica(query, focusMode, optimizationMode);
     } else if (engine === 'searxng') {
-      return await searchSearXNG(query, body.categories);
+      return await searchSearXNG(query, body.categories, generateSummary);
     }
     
     return NextResponse.json({ error: 'Invalid engine' }, { status: 400 });
@@ -354,7 +354,70 @@ async function searchSearXNGDirect(query: string) {
   }), { headers: { 'Content-Type': 'application/json' } });
 }
 
-async function searchSearXNG(query: string, categories?: string[]) {
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+// Generate AI summary of search results using Ollama
+async function generateSearchSummary(
+  query: string,
+  results: Array<{ title: string; url: string; snippet: string; source: string }>
+): Promise<string | null> {
+  if (results.length === 0) return null;
+  
+  // Build context from search results
+  const sourcesContext = results.slice(0, 10).map((r, i) => 
+    `[${i + 1}] "${r.title}"\nURL: ${r.url}\nContent: ${r.snippet}\n`
+  ).join('\n');
+  
+  const prompt = `You are a research assistant. Based on the following search results for the query "${query}", provide a comprehensive summary that:
+1. Synthesizes the key information from multiple sources
+2. Uses inline citations like [1], [2], etc. to reference specific sources
+3. Is well-organized and easy to read
+4. Highlights any conflicting information between sources
+5. Is 2-3 paragraphs long
+
+Search Results:
+${sourcesContext}
+
+Write your summary now, using [1], [2], etc. to cite sources:`;
+
+  try {
+    console.log('Generating AI summary with Ollama...');
+    
+    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'qwen3:latest', // Use the default model
+        prompt,
+        stream: false,
+        options: {
+          temperature: 0.3, // Lower for more factual responses
+          num_predict: 1024,
+        },
+      }),
+      signal: AbortSignal.timeout(60000), // 60 second timeout for AI generation
+    });
+    
+    if (!response.ok) {
+      console.error('Ollama summary generation failed:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    const summary = data.response?.trim();
+    
+    if (summary) {
+      console.log('AI summary generated successfully');
+      return summary;
+    }
+  } catch (error) {
+    console.error('Error generating AI summary:', error);
+  }
+  
+  return null;
+}
+
+async function searchSearXNG(query: string, categories?: string[], generateSummary: boolean = true) {
   try {
     const params = new URLSearchParams({
       q: query,
@@ -389,11 +452,18 @@ async function searchSearXNG(query: string, categories?: string[]) {
       relevanceScore: r.score,
     }));
     
+    // Generate AI summary if requested and we have results
+    let aiSummary: string | null = null;
+    if (generateSummary && results.length > 0) {
+      aiSummary = await generateSearchSummary(query, results);
+    }
+    
     return NextResponse.json({
       query,
       results,
       totalResults: data.number_of_results || results.length,
       searchEngine: 'searxng',
+      aiSummary, // Include AI-generated summary with citations!
     });
   } catch (error) {
     console.error('SearXNG search error:', error);
