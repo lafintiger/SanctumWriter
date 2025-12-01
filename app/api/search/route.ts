@@ -73,65 +73,106 @@ async function searchPerplexica(
   focusMode?: string,
   optimizationMode?: string
 ) {
-  // Try the Perplexica API
-  const endpoints = [
-    '/api/search',
-    '/api/chat',
+  // Perplexica API formats to try
+  const requestFormats = [
+    // Format 1: Standard search endpoint
+    {
+      endpoint: '/api/search',
+      body: {
+        query,
+        focusMode: focusMode || 'webSearch',
+        optimizationMode: optimizationMode || 'balanced',
+      },
+    },
+    // Format 2: With chat/embedding model config
+    {
+      endpoint: '/api/search',
+      body: {
+        query,
+        chatModel: { provider: 'ollama', model: 'qwen3:latest' },
+        embeddingModel: { provider: 'ollama', model: 'nomic-embed-text' },
+        focusMode: focusMode || 'webSearch',
+        optimizationMode: optimizationMode || 'balanced',
+      },
+    },
+    // Format 3: Chat-style format
+    {
+      endpoint: '/api/chat',
+      body: {
+        message: query,
+        focus: focusMode || 'webSearch',
+        mode: optimizationMode || 'balanced',
+      },
+    },
+    // Format 4: Simple query format
+    {
+      endpoint: '/api/search',
+      body: { q: query },
+    },
   ];
   
-  for (const endpoint of endpoints) {
+  for (const { endpoint, body } of requestFormats) {
     try {
+      console.log(`Trying Perplexica ${endpoint} with:`, JSON.stringify(body).slice(0, 200));
+      
       const response = await fetch(`${PERPLEXICA_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          query,
-          chatModel: {
-            provider: 'ollama',
-            model: 'qwen3:latest',
-          },
-          embeddingModel: {
-            provider: 'ollama', 
-            model: 'nomic-embed-text',
-          },
-          focusMode: focusMode || 'webSearch',
-          optimizationMode: optimizationMode || 'balanced',
-          // Alternative format
-          message: query,
-          focus: focusMode || 'webSearch',
-        }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(60000),
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Perplexica response:', data);
-        
-        // Parse response
-        const sources = data.sources || data.results || data.context || [];
-        const results = sources.map((s: any) => ({
-          title: s.title || s.name || s.metadata?.title || 'Untitled',
-          url: s.url || s.link || s.metadata?.url || '',
-          snippet: s.snippet || s.content || s.description || s.pageContent || '',
-          source: 'perplexica',
-          relevanceScore: s.score,
-        }));
-        
-        return NextResponse.json({
-          query,
-          results,
-          totalResults: results.length,
-          searchEngine: 'perplexica',
-          aiSummary: data.answer || data.response || data.message || data.content,
-        });
-      }
+      const responseText = await response.text();
+      console.log(`Perplexica ${endpoint} returned ${response.status}:`, responseText.slice(0, 500));
       
-      console.log(`Perplexica ${endpoint} returned ${response.status}`);
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          
+          // Parse response - handle various formats
+          const sources = data.sources || data.results || data.context || data.documents || [];
+          const results = sources.map((s: any) => ({
+            title: s.title || s.name || s.metadata?.title || 'Untitled',
+            url: s.url || s.link || s.metadata?.url || s.metadata?.source || '',
+            snippet: s.snippet || s.content || s.description || s.pageContent || s.text || '',
+            source: 'perplexica',
+            relevanceScore: s.score,
+          }));
+          
+          return NextResponse.json({
+            query,
+            results,
+            totalResults: results.length,
+            searchEngine: 'perplexica',
+            aiSummary: data.answer || data.response || data.message || data.content || data.text,
+          });
+        } catch (parseError) {
+          console.error('Failed to parse Perplexica response:', parseError);
+        }
+      }
     } catch (error) {
       console.error(`Perplexica ${endpoint} error:`, error);
     }
+  }
+  
+  // Fallback: Try SearXNG instead
+  console.log('Perplexica failed, falling back to SearXNG...');
+  try {
+    const searxngResponse = await searchSearXNGDirect(query);
+    if (searxngResponse) {
+      const data = await searxngResponse.json();
+      return NextResponse.json({
+        ...data,
+        searchEngine: 'searxng',
+        aiSummary: undefined,
+        error: 'Perplexica unavailable, used SearXNG',
+      });
+    }
+  } catch (e) {
+    console.error('SearXNG fallback also failed:', e);
   }
   
   return NextResponse.json({
@@ -139,8 +180,42 @@ async function searchPerplexica(
     results: [],
     totalResults: 0,
     searchEngine: 'perplexica',
-    error: 'Perplexica search failed',
+    error: 'Perplexica search failed - check if it is properly configured',
   });
+}
+
+// Direct SearXNG search for fallback
+async function searchSearXNGDirect(query: string) {
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    language: 'en',
+  });
+  
+  const response = await fetch(`${SEARXNG_URL}/search?${params}`, {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  
+  if (!response.ok) return null;
+  
+  const data = await response.json();
+  const results = (data.results || []).map((r: any) => ({
+    title: r.title || 'Untitled',
+    url: r.url || '',
+    snippet: r.content || r.description || '',
+    source: r.engine || 'searxng',
+    publishedDate: r.publishedDate,
+    relevanceScore: r.score,
+  }));
+  
+  return new Response(JSON.stringify({
+    query,
+    results,
+    totalResults: data.number_of_results || results.length,
+    searchEngine: 'searxng',
+  }), { headers: { 'Content-Type': 'application/json' } });
 }
 
 async function searchSearXNG(query: string, categories?: string[]) {
