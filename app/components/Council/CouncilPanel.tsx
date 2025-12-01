@@ -28,6 +28,8 @@ export function CouncilPanel() {
   const {
     reviewers,
     currentSession,
+    currentReviewDocument,
+    reviewPhase,
     isReviewing,
     reviewProgress,
     toggleReviewer,
@@ -100,6 +102,8 @@ export function CouncilPanel() {
         ) : (
           <ResultsTab
             session={currentSession}
+            reviewDocument={currentReviewDocument}
+            reviewPhase={reviewPhase}
             reviewers={reviewers}
             filterByReviewer={filterByReviewer}
             setFilterByReviewer={setFilterByReviewer}
@@ -240,6 +244,8 @@ function ReviewersTab({
 // Results Tab Component
 interface ResultsTabProps {
   session: ReturnType<typeof useCouncilStore.getState>['currentSession'];
+  reviewDocument: ReturnType<typeof useCouncilStore.getState>['currentReviewDocument'];
+  reviewPhase: ReturnType<typeof useCouncilStore.getState>['reviewPhase'];
   reviewers: ReturnType<typeof useCouncilStore.getState>['reviewers'];
   filterByReviewer: string | null;
   setFilterByReviewer: (id: string | null) => void;
@@ -250,6 +256,8 @@ interface ResultsTabProps {
 
 function ResultsTab({
   session,
+  reviewDocument,
+  reviewPhase,
   reviewers,
   filterByReviewer,
   setFilterByReviewer,
@@ -257,6 +265,8 @@ function ResultsTab({
   setFilterByType,
   updateCommentStatus,
 }: ResultsTabProps) {
+  const [showEditorView, setShowEditorView] = useState(false);
+  
   if (!session) {
     return (
       <div className="p-6 text-center">
@@ -278,8 +288,73 @@ function ResultsTab({
     comments = comments.filter((c) => c.type === filterByType);
   }
   
+  // Phase indicator
+  const phaseLabels = {
+    idle: '⏸️ Ready',
+    council_reviewing: '📋 Council Reviewing...',
+    editor_synthesizing: '📝 Editor Synthesizing...',
+    user_deciding: '✅ Ready for Your Review',
+    complete: '🎉 Complete',
+  };
+  
   return (
     <div className="flex flex-col h-full">
+      {/* Phase indicator */}
+      <div className="p-2 border-b border-border bg-accent/5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-accent">{phaseLabels[reviewPhase]}</span>
+          {reviewDocument?.editorSynthesis && (
+            <button
+              onClick={() => setShowEditorView(!showEditorView)}
+              className={cn(
+                'text-xs px-2 py-0.5 rounded transition-colors',
+                showEditorView 
+                  ? 'bg-pink-500/20 text-pink-400'
+                  : 'bg-editor-bg text-text-secondary hover:text-text-primary'
+              )}
+            >
+              📝 {showEditorView ? 'Hide' : 'Show'} Editor View
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* Editor Synthesis View */}
+      {showEditorView && reviewDocument?.editorSynthesis && (
+        <div className="p-3 border-b border-border bg-pink-500/5 space-y-3">
+          <div>
+            <h4 className="text-xs font-medium text-pink-400 mb-1">📝 Editor&apos;s Assessment</h4>
+            <p className="text-xs text-text-secondary">{reviewDocument.editorSynthesis.overallAssessment}</p>
+          </div>
+          
+          {reviewDocument.editorSynthesis.prioritizedChanges.length > 0 && (
+            <div>
+              <h4 className="text-xs font-medium text-text-primary mb-1">Prioritized Changes</h4>
+              <div className="space-y-1">
+                {reviewDocument.editorSynthesis.prioritizedChanges.map((change, i) => (
+                  <div key={i} className={cn(
+                    'text-xs p-2 rounded border-l-2',
+                    change.priority === 'high' && 'border-red-500 bg-red-500/5',
+                    change.priority === 'medium' && 'border-yellow-500 bg-yellow-500/5',
+                    change.priority === 'low' && 'border-green-500 bg-green-500/5',
+                  )}>
+                    <span className={cn(
+                      'font-medium',
+                      change.priority === 'high' && 'text-red-400',
+                      change.priority === 'medium' && 'text-yellow-400',
+                      change.priority === 'low' && 'text-green-400',
+                    )}>
+                      {change.priority.toUpperCase()}:
+                    </span>{' '}
+                    <span className="text-text-primary">{change.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Filters */}
       <div className="p-2 border-b border-border flex gap-2">
         <select
@@ -465,7 +540,7 @@ function StartReviewButton({ enabledReviewers, currentDocument, selection, isRev
     startReview(currentDocument.path, currentDocument.content, reviewerIds);
     
     // Dynamically import to avoid SSR issues
-    const { runReviewPipeline } = await import('@/lib/council/reviewPipeline');
+    const { runFullCouncilReview } = await import('@/lib/council/reviewPipeline');
     
     const selectionData = useSelection && selection ? {
       text: selection.text,
@@ -474,8 +549,9 @@ function StartReviewButton({ enabledReviewers, currentDocument, selection, isRev
     } : undefined;
     
     try {
-      await runReviewPipeline(
+      await runFullCouncilReview(
         currentDocument.content,
+        currentDocument.path,
         reviewerIds,
         selectionData,
         (status) => setReviewStatus(status)

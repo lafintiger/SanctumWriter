@@ -361,3 +361,193 @@ export async function runReviewPipelineParallel(
   onProgress?.('Review complete!');
 }
 
+/**
+ * Run the full council review pipeline with Editor synthesis
+ */
+export async function runFullCouncilReview(
+  content: string,
+  documentPath: string,
+  reviewerIds: string[],
+  selection?: { text: string; startLine: number; endLine: number },
+  onProgress?: (status: string) => void
+): Promise<void> {
+  const { 
+    reviewers, 
+    getEditorReviewer,
+    getCouncilReviewers,
+    initReviewDocument,
+    addCouncilFeedback,
+    setEditorSynthesis,
+    setReviewPhase,
+    currentSession,
+  } = useCouncilStore.getState();
+  
+  // Get council members (non-editor reviewers)
+  const councilReviewers = reviewers.filter(
+    (r) => reviewerIds.includes(r.id) && !r.isEditor
+  );
+  
+  const editor = getEditorReviewer();
+  
+  if (councilReviewers.length === 0) {
+    console.warn('No council reviewers enabled');
+    return;
+  }
+  
+  // Initialize review document
+  const sessionId = currentSession?.id || 'manual';
+  initReviewDocument(sessionId, documentPath, content);
+  
+  onProgress?.(`📋 Council convened with ${councilReviewers.length} reviewer(s)...`);
+  
+  // Phase 1: Council Reviews
+  setReviewPhase('council_reviewing');
+  
+  for (const reviewer of councilReviewers) {
+    try {
+      onProgress?.(`${reviewer.icon} ${reviewer.name} is reviewing...`);
+      const comments = await runReviewer(reviewer, content, selection, onProgress);
+      
+      // Create summary for this reviewer
+      const reviewerSummary = `${reviewer.name} found ${comments.length} item(s): ${
+        comments.filter(c => c.type === 'error').length
+      } errors, ${
+        comments.filter(c => c.type === 'warning').length
+      } warnings, ${
+        comments.filter(c => c.type === 'suggestion').length
+      } suggestions.`;
+      
+      addCouncilFeedback(reviewer.id, comments, reviewerSummary);
+      onProgress?.(`${reviewer.icon} ${reviewer.name} complete`);
+    } catch (error) {
+      console.error(`Council reviewer ${reviewer.name} failed:`, error);
+      onProgress?.(`${reviewer.icon} ${reviewer.name} failed`);
+    }
+  }
+  
+  // Phase 2: Editor Synthesis
+  if (editor) {
+    setReviewPhase('editor_synthesizing');
+    onProgress?.(`${editor.icon} ${editor.name} is synthesizing feedback...`);
+    
+    try {
+      const synthesis = await runEditorSynthesis(editor, content, documentPath);
+      setEditorSynthesis(synthesis);
+      onProgress?.(`${editor.icon} Editor synthesis complete`);
+    } catch (error) {
+      console.error('Editor synthesis failed:', error);
+      onProgress?.(`${editor.icon} Editor synthesis failed`);
+    }
+  } else {
+    onProgress?.('⚠️ No Editor configured - skipping synthesis');
+  }
+  
+  // Phase 3: User Decision (handled in UI)
+  setReviewPhase('user_deciding');
+  onProgress?.('✅ Ready for your review!');
+}
+
+/**
+ * Run the Editor to synthesize council feedback
+ */
+async function runEditorSynthesis(
+  editor: Reviewer,
+  originalContent: string,
+  documentPath: string
+): Promise<NonNullable<import('@/types/council').ReviewDocument['editorSynthesis']>> {
+  const { currentReviewDocument } = useCouncilStore.getState();
+  const { temperature, topP, topK } = useSettingsStore.getState();
+  
+  if (!currentReviewDocument) {
+    throw new Error('No review document found');
+  }
+  
+  // Build prompt with all council feedback
+  const feedbackSummary = currentReviewDocument.councilFeedback
+    .map((f) => {
+      const commentsList = f.comments
+        .map((c) => `  - Line ${c.startLine}: [${c.type}] ${c.comment}${c.suggestedFix ? ` → "${c.suggestedFix}"` : ''}`)
+        .join('\n');
+      return `### ${f.reviewerIcon} ${f.reviewerName} (${f.model}):\n${f.summary}\n${commentsList}`;
+    })
+    .join('\n\n');
+  
+  const prompt = `${editor.systemPrompt}
+
+## Document Being Reviewed
+Path: ${documentPath}
+
+\`\`\`
+${originalContent.slice(0, 3000)}${originalContent.length > 3000 ? '\n... (truncated)' : ''}
+\`\`\`
+
+## Council Feedback
+${feedbackSummary}
+
+## Your Task
+As the Editor, synthesize all council feedback and provide:
+1. An overall assessment of the document
+2. Prioritized list of recommended changes
+3. Any conflicting feedback that needs the user's decision
+4. What the user should focus on first
+
+Respond in JSON format:
+{
+  "overallAssessment": "Brief summary of the document's current state and quality",
+  "prioritizedChanges": [
+    {"priority": "high", "description": "what to change", "reason": "why this is important"},
+    {"priority": "medium", "description": "...", "reason": "..."},
+    {"priority": "low", "description": "...", "reason": "..."}
+  ],
+  "conflictingFeedback": ["any disagreements between reviewers that need user input"],
+  "recommendedFocus": "what the user should work on first"
+}`;
+
+  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: editor.model,
+      prompt,
+      stream: false,
+      options: {
+        temperature: Math.max(0.1, temperature - 0.1),
+        top_p: topP,
+        top_k: topK,
+        num_predict: 2048,
+      },
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Editor synthesis failed: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  const responseText = data.response || '';
+  
+  // Parse the Editor's response
+  let synthesis;
+  try {
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      synthesis = JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.warn('Failed to parse Editor JSON response');
+  }
+  
+  // Build the synthesis object
+  return {
+    reviewerId: editor.id,
+    model: editor.model,
+    overallAssessment: synthesis?.overallAssessment || responseText.slice(0, 500),
+    prioritizedChanges: (synthesis?.prioritizedChanges || []).map((c: { priority?: string; description?: string; relatedComments?: string[] }) => ({
+      priority: (c.priority as 'high' | 'medium' | 'low') || 'medium',
+      description: c.description || '',
+      relatedComments: c.relatedComments || [],
+    })),
+    timestamp: new Date(),
+  };
+}
+
