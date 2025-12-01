@@ -3,9 +3,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorView } from '@codemirror/view';
 import { Editor, FileTree, Chat, Header, Preview, Toast, Settings, CouncilPanel, ResearchPanel } from './components';
+import { WorkflowPanel } from './components/Workflow/WorkflowPanel';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { useSearchStore } from '@/lib/store/useSearchStore';
+import { useWorkflowStore } from '@/lib/store/useWorkflowStore';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -20,6 +22,7 @@ export default function Home() {
   
   const { showCouncilPanel } = useCouncilStore();
   const { showResearchPanel } = useSearchStore();
+  const { showWorkflowPanel } = useWorkflowStore();
 
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -131,6 +134,13 @@ export default function Home() {
         {showResearchPanel && (
           <div className="flex-shrink-0">
             <ResearchPanel />
+          </div>
+        )}
+        
+        {/* Workflow Panel */}
+        {showWorkflowPanel && (
+          <div className="flex-shrink-0">
+            <WorkflowPanel />
           </div>
         )}
 

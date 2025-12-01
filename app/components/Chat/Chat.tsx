@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useChatStore } from '@/lib/store/useChatStore';
 import { useSettingsStore } from '@/lib/store/useSettingsStore';
+import { useWorkflowStore, STAGE_LABELS } from '@/lib/store/useWorkflowStore';
 import { streamChat, estimateMessagesTokens, LLMOptions } from '@/lib/llm/client';
-import { getSystemPrompt } from '@/lib/llm/tools';
+import { getSystemPrompt, WorkflowContext } from '@/lib/llm/tools';
 import { parseToolCallToOperation, executeOperation } from '@/lib/editor/operations';
 import { ChatMessage, LLMMessage } from '@/types';
 import { EditorView } from '@codemirror/view';
@@ -95,6 +96,8 @@ export function Chat({ editorView }: ChatProps) {
     contextLength,
     setContextUsed,
   } = useSettingsStore();
+  
+  const { getWorkflow, getProgress } = useWorkflowStore();
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -128,6 +131,24 @@ export function Chat({ editorView }: ChatProps) {
 
     setIsStreaming(true);
 
+    // Get workflow context if available
+    let workflowContext: WorkflowContext | undefined;
+    const workflow = getWorkflow(currentDocument.path);
+    if (workflow) {
+      const progress = getProgress(currentDocument.path);
+      const pendingItems = workflow.checklist
+        .filter(item => item.stage === workflow.currentStage && !item.completed)
+        .map(item => item.label);
+      
+      workflowContext = {
+        currentStage: workflow.currentStage,
+        stageLabel: STAGE_LABELS[workflow.currentStage],
+        progress,
+        pendingItems,
+        notes: workflow.notes,
+      };
+    }
+
     // Build messages array with context
     const systemPrompt = getSystemPrompt(
       currentDocument.content,
@@ -136,7 +157,8 @@ export function Chat({ editorView }: ChatProps) {
         text: selection.text,
         fromLine: selection.fromLine,
         toLine: selection.toLine,
-      } : undefined
+      } : undefined,
+      workflowContext
     );
 
     const llmMessages: LLMMessage[] = [

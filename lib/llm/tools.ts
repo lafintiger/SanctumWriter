@@ -134,7 +134,20 @@ export function formatToolsForLMStudio(tools: ToolDefinition[]) {
   }));
 }
 
-export function getSystemPrompt(documentContent: string, documentPath: string, selection?: { text: string; fromLine: number; toLine: number }): string {
+export interface WorkflowContext {
+  currentStage: string;
+  stageLabel: string;
+  progress: { completed: number; total: number; percentage: number };
+  pendingItems: string[];
+  notes: string;
+}
+
+export function getSystemPrompt(
+  documentContent: string, 
+  documentPath: string, 
+  selection?: { text: string; fromLine: number; toLine: number },
+  workflowContext?: WorkflowContext
+): string {
   let prompt = `You are an AI writing assistant helping to edit and improve documents. You have direct access to modify the document through tool calls.
 
 Current document: ${documentPath}
@@ -168,6 +181,35 @@ ${selection.text}
 \`\`\`
 
 When the user refers to "this", "the selected text", or similar, they mean the text above.`;
+  }
+
+  // Add workflow context if available
+  if (workflowContext) {
+    prompt += `
+
+WRITING WORKFLOW STATUS:
+The user is following a structured writing workflow for this document.
+
+Current Stage: ${workflowContext.stageLabel}
+Overall Progress: ${workflowContext.progress.percentage}% (${workflowContext.progress.completed}/${workflowContext.progress.total} items)
+
+${workflowContext.pendingItems.length > 0 ? `Pending in current stage:
+${workflowContext.pendingItems.map(item => `- ${item}`).join('\n')}` : 'All items in current stage are complete!'}
+
+${workflowContext.notes ? `User notes: ${workflowContext.notes}` : ''}
+
+WORKFLOW-AWARE ASSISTANCE:
+- Be aware of the user's current writing stage and tailor your help accordingly
+- During "Setup" stage: Help with model selection, settings, and preparation
+- During "Outline" stage: Help brainstorm structure, suggest sections
+- During "Drafting" stage: Help write content, expand ideas, continue sections
+- During "Self Review" / "Council Review" stages: Focus on reviewing, not adding new content
+- During "Revisions" stage: Help implement feedback and fixes
+- During "Fact Check" stage: Help verify claims and suggest sources
+- During "Final Polish" stage: Focus on minor refinements, not major changes
+
+If appropriate, proactively suggest next steps based on the workflow stage.
+Example: If draft is complete, suggest "Ready for the Council review? Open the Council panel to get feedback."`;
   }
 
   return prompt;

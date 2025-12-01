@@ -13,12 +13,14 @@ import {
   ChevronDown,
   Users,
   Search,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useSettingsStore } from '@/lib/store/useSettingsStore';
 import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { useSearchStore } from '@/lib/store/useSearchStore';
+import { useWorkflowStore } from '@/lib/store/useWorkflowStore';
 
 export function Header() {
   const {
@@ -41,7 +43,9 @@ export function Header() {
   const { toggleSettings, writingPreset, contextLength, contextUsed } = useSettingsStore();
   const { showCouncilPanel, toggleCouncilPanel, getEnabledReviewers } = useCouncilStore();
   const { showResearchPanel, toggleResearchPanel, engineStatus } = useSearchStore();
+  const { showWorkflowPanel, toggleWorkflowPanel, getProgress } = useWorkflowStore();
   const enabledReviewersCount = getEnabledReviewers().length;
+  const workflowProgress = currentDocument ? getProgress(currentDocument.path) : null;
   
   const [providerStatus, setProviderStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [showProviderMenu, setShowProviderMenu] = useState(false);
@@ -251,6 +255,27 @@ export function Header() {
         >
           <Search className="w-5 h-5" />
           {(engineStatus.perplexica || engineStatus.searxng) && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full" />
+          )}
+        </button>
+        
+        <button
+          onClick={toggleWorkflowPanel}
+          className={cn(
+            'p-1.5 rounded relative',
+            showWorkflowPanel
+              ? 'bg-accent/20 text-accent'
+              : 'hover:bg-border text-text-secondary hover:text-text-primary'
+          )}
+          title="Writing Workflow"
+        >
+          <ListChecks className="w-5 h-5" />
+          {workflowProgress && workflowProgress.percentage > 0 && workflowProgress.percentage < 100 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[10px] rounded-full flex items-center justify-center">
+              {workflowProgress.percentage}%
+            </span>
+          )}
+          {workflowProgress && workflowProgress.percentage === 100 && (
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full" />
           )}
         </button>
