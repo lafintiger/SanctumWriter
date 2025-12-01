@@ -219,7 +219,7 @@ export function formatResultsAsMarkdown(
   }
 ): string {
   const lines: string[] = [];
-  const maxResults = options?.maxResults || 5;
+  const maxResults = options?.maxResults || 100; // Default to all results
   
   // Add AI summary if available
   if (options?.includeAiSummary && response.aiSummary) {
