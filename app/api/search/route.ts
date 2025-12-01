@@ -76,22 +76,16 @@ async function searchPerplexica(
   // Perplexica uses Server-Sent Events (SSE) streaming for its API
   // We need to handle the stream and collect the full response
   
-  const requestBody = {
-    chatModel: {
-      provider: 'ollama',
-      model: 'qwen3:latest', // Use the model configured in Perplexica
-    },
-    embeddingModel: {
-      provider: 'ollama',
-      model: 'nomic-embed-text:latest',
-    },
-    optimizationMode: optimizationMode || 'balanced',
-    focusMode: focusMode || 'webSearch',
+  // Don't specify models - let Perplexica use its own configured defaults
+  // If we need models, Perplexica will use what's set in its config.toml
+  const requestBody: Record<string, any> = {
     query: query,
+    focusMode: focusMode || 'webSearch',
+    optimizationMode: optimizationMode || 'balanced',
     history: [],
   };
   
-  console.log('Perplexica request:', JSON.stringify(requestBody).slice(0, 300));
+  console.log('Perplexica request:', JSON.stringify(requestBody));
   
   try {
     const response = await fetch(`${PERPLEXICA_URL}/api/search`, {
