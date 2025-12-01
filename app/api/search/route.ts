@@ -208,14 +208,23 @@ async function searchPerplexica(
   } catch (error) {
     console.error('Perplexica search error:', error);
     
-    // Fallback to SearXNG
-    console.log('Falling back to SearXNG...');
+    // Fallback to SearXNG with AI summary
+    console.log('Falling back to SearXNG with AI summary...');
     try {
       const searxngResult = await searchSearXNGDirect(query);
       if (searxngResult) {
         const data = await searxngResult.json();
+        
+        // Generate AI summary for the fallback results too!
+        let aiSummary: string | null = null;
+        if (data.results && data.results.length > 0) {
+          console.log('Generating AI summary for SearXNG fallback results...');
+          aiSummary = await generateSearchSummary(query, data.results);
+        }
+        
         return NextResponse.json({
           ...data,
+          aiSummary,
           error: `Perplexica failed: ${error instanceof Error ? error.message : 'Unknown error'}. Used SearXNG instead.`,
         });
       }
