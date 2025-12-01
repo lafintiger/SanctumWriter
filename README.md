@@ -94,16 +94,23 @@ SanctumWriter integrates with several local services. Here's what you need:
 #### Installation Order
 
 ```
-1. Docker Desktop (if using search features)
-      ↓
-2. Ollama OR LM Studio (required for AI)
-      ↓
-3. SearXNG (optional - fact-checking)
-      ↓
-4. Perplexica (optional - AI search)
-      ↓
-5. SanctumWriter
+REQUIRED (Native Install):
+─────────────────────────
+1. Node.js (for SanctumWriter)
+2. Ollama OR LM Studio (for AI) ← Install directly, NOT in Docker
+
+OPTIONAL (Docker-based):
+────────────────────────
+3. Docker Desktop (only if using search features below)
+4. SearXNG (privacy search - runs in Docker)
+5. Perplexica (AI search - runs in Docker)
+
+FINALLY:
+────────
+6. SanctumWriter
 ```
+
+> ⚠️ **Note**: Install Ollama/LM Studio natively on your machine (not in Docker). While Docker versions exist, native installation gives better performance and GPU access.
 
 ---
 
