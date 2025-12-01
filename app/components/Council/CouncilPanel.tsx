@@ -453,25 +453,46 @@ interface StartReviewButtonProps {
 
 function StartReviewButton({ enabledReviewers, currentDocument, isReviewing }: StartReviewButtonProps) {
   const { startReview, cancelReview } = useCouncilStore();
+  const [reviewStatus, setReviewStatus] = useState('');
   
-  const handleStartReview = () => {
+  const handleStartReview = async () => {
     if (!currentDocument) return;
     
     const reviewerIds = enabledReviewers.map((r) => r.id);
     startReview(currentDocument.path, currentDocument.content, reviewerIds);
     
-    // TODO: Trigger actual review pipeline here
+    // Dynamically import to avoid SSR issues
+    const { runReviewPipeline } = await import('@/lib/council/reviewPipeline');
+    
+    try {
+      await runReviewPipeline(
+        currentDocument.content,
+        reviewerIds,
+        undefined, // No selection for full document review
+        (status) => setReviewStatus(status)
+      );
+    } catch (error) {
+      console.error('Review pipeline error:', error);
+      setReviewStatus('Review failed');
+    }
   };
   
   if (isReviewing) {
     return (
-      <button
-        onClick={cancelReview}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium rounded-lg transition-colors"
-      >
-        <Square className="w-4 h-4" />
-        Cancel Review
-      </button>
+      <div className="space-y-2">
+        {reviewStatus && (
+          <div className="text-xs text-text-secondary text-center py-1">
+            {reviewStatus}
+          </div>
+        )}
+        <button
+          onClick={cancelReview}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium rounded-lg transition-colors"
+        >
+          <Square className="w-4 h-4" />
+          Cancel Review
+        </button>
+      </div>
     );
   }
   
