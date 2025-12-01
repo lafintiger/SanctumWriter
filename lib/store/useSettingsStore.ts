@@ -206,6 +206,21 @@ interface HardwareInfo {
   isManualSelection: boolean;
 }
 
+// Service URLs configuration
+export interface ServiceURLs {
+  ollama: string;
+  lmstudio: string;
+  perplexica: string;
+  searxng: string;
+}
+
+export const DEFAULT_SERVICE_URLS: ServiceURLs = {
+  ollama: 'http://localhost:11434',
+  lmstudio: 'http://localhost:1234',
+  perplexica: 'http://localhost:3000',
+  searxng: 'http://localhost:4000',
+};
+
 interface SettingsState {
   // Writing settings
   writingPreset: WritingPreset;
@@ -221,6 +236,9 @@ interface SettingsState {
   
   // Hardware info
   hardwareInfo: HardwareInfo;
+  
+  // Service URLs
+  serviceURLs: ServiceURLs;
   
   // Context tracking
   contextUsed: number; // tokens used
@@ -238,6 +256,8 @@ interface SettingsState {
   setMaxContextLength: (length: number) => void;
   setCurrentModelInfo: (info: ModelInfo | null) => void;
   setHardwareInfo: (info: HardwareInfo) => void;
+  setServiceURL: (service: keyof ServiceURLs, url: string) => void;
+  resetServiceURLs: () => void;
   setContextUsed: (used: number) => void;
   toggleSettings: () => void;
   setShowSettings: (show: boolean) => void;
@@ -308,6 +328,8 @@ export const useSettingsStore = create<SettingsState>()(
         isManualSelection: false,
       },
       
+      serviceURLs: { ...DEFAULT_SERVICE_URLS },
+      
       contextUsed: 0,
       showSettings: false,
       
@@ -331,6 +353,10 @@ export const useSettingsStore = create<SettingsState>()(
       setMaxContextLength: (maxContextLength) => set({ maxContextLength }),
       setCurrentModelInfo: (currentModelInfo) => set({ currentModelInfo }),
       setHardwareInfo: (hardwareInfo) => set({ hardwareInfo }),
+      setServiceURL: (service, url) => set((state) => ({
+        serviceURLs: { ...state.serviceURLs, [service]: url },
+      })),
+      resetServiceURLs: () => set({ serviceURLs: { ...DEFAULT_SERVICE_URLS } }),
       setContextUsed: (contextUsed) => set({ contextUsed }),
       toggleSettings: () => set((state) => ({ showSettings: !state.showSettings })),
       setShowSettings: (showSettings) => set({ showSettings }),
@@ -452,6 +478,7 @@ export const useSettingsStore = create<SettingsState>()(
         repeatPenalty: state.repeatPenalty,
         contextLength: state.contextLength,
         hardwareInfo: state.hardwareInfo, // Persist hardware selection
+        serviceURLs: state.serviceURLs, // Persist service URLs
       }),
     }
   )

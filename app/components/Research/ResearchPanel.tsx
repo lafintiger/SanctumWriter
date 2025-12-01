@@ -26,8 +26,10 @@ import {
 import { cn } from '@/lib/utils';
 import { useSearchStore } from '@/lib/store/useSearchStore';
 import { useAppStore } from '@/lib/store/useAppStore';
+import { useSettingsStore } from '@/lib/store/useSettingsStore';
 import {
   search,
+  checkSearchEngineStatus,
   SearchResult,
   SearchEngine,
   formatResultsAsMarkdown,
@@ -172,6 +174,7 @@ export function ResearchPanel() {
     error,
     setError,
     engineStatus,
+    setEngineStatus,
     preferredEngine,
     setPreferredEngine,
     focusMode,
@@ -182,21 +185,29 @@ export function ResearchPanel() {
     savedResults,
     saveResult,
     removeResult,
-    checkEngines,
     clearSearch,
   } = useSearchStore();
   
   const { selection, currentDocument, updateDocumentContent, cursorPosition, showToast } = useAppStore();
+  const { serviceURLs } = useSettingsStore();
   
   const [activeTab, setActiveTab] = useState<'search' | 'saved' | 'history'>('search');
   const [showEngineDropdown, setShowEngineDropdown] = useState(false);
   
-  // Check engine status on mount
+  // Check engine status on mount and when serviceURLs change
+  const checkEnginesWithURLs = useCallback(async () => {
+    const status = await checkSearchEngineStatus({
+      perplexica: serviceURLs.perplexica,
+      searxng: serviceURLs.searxng,
+    });
+    setEngineStatus(status);
+  }, [serviceURLs.perplexica, serviceURLs.searxng, setEngineStatus]);
+  
   useEffect(() => {
     if (showResearchPanel) {
-      checkEngines();
+      checkEnginesWithURLs();
     }
-  }, [showResearchPanel, checkEngines]);
+  }, [showResearchPanel, checkEnginesWithURLs]);
   
   // Pre-fill search with selected text
   useEffect(() => {
@@ -212,13 +223,19 @@ export function ResearchPanel() {
     setError(null);
     
     try {
-      const response = await search(currentQuery, preferredEngine, { focusMode });
+      const response = await search(currentQuery, preferredEngine, { 
+        focusMode,
+        serviceURLs: {
+          perplexica: serviceURLs.perplexica,
+          searxng: serviceURLs.searxng,
+        }
+      });
       setResults(response);
       addToHistory(currentQuery, response.results.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
     }
-  }, [currentQuery, preferredEngine, focusMode, setSearching, setError, setResults, addToHistory]);
+  }, [currentQuery, preferredEngine, focusMode, serviceURLs.perplexica, serviceURLs.searxng, setSearching, setError, setResults, addToHistory]);
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

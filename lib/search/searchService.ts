@@ -6,6 +6,8 @@
  * - SearXNG (localhost:4000) - Privacy-focused meta-search
  * 
  * All requests go through our API proxy to avoid CORS issues
+ * 
+ * Service URLs can be customized via the serviceURLs parameter
  */
 
 export interface SearchResult {
@@ -28,16 +30,30 @@ export interface SearchResponse {
 
 export type SearchEngine = 'perplexica' | 'searxng' | 'both';
 
+export interface ServiceURLs {
+  perplexica?: string;
+  searxng?: string;
+}
+
 /**
  * Check if a search engine is available (via API proxy)
  */
-export async function checkSearchEngineStatus(): Promise<{
+export async function checkSearchEngineStatus(serviceURLs?: ServiceURLs): Promise<{
   perplexica: boolean;
   searxng: boolean;
 }> {
   try {
+    const headers: Record<string, string> = {};
+    if (serviceURLs?.perplexica) {
+      headers['X-Perplexica-URL'] = serviceURLs.perplexica;
+    }
+    if (serviceURLs?.searxng) {
+      headers['X-SearXNG-URL'] = serviceURLs.searxng;
+    }
+    
     const response = await fetch('/api/search?action=status', {
       method: 'GET',
+      headers,
       signal: AbortSignal.timeout(10000),
     });
     
@@ -63,6 +79,7 @@ export async function searchSearXNG(
     engines?: string[];
     language?: string;
     pageNo?: number;
+    serviceURLs?: ServiceURLs;
   }
 ): Promise<SearchResponse> {
   try {
@@ -75,6 +92,7 @@ export async function searchSearXNG(
         engine: 'searxng',
         query,
         categories: options?.categories,
+        searxngUrl: options?.serviceURLs?.searxng,
       }),
       signal: AbortSignal.timeout(90000), // 90 seconds - AI summary takes time
     });
@@ -105,6 +123,7 @@ export async function searchPerplexica(
   options?: {
     focusMode?: 'webSearch' | 'academicSearch' | 'writingAssistant' | 'wolframAlphaSearch' | 'youtubeSearch' | 'redditSearch';
     optimizationMode?: 'speed' | 'balanced' | 'quality';
+    serviceURLs?: ServiceURLs;
   }
 ): Promise<SearchResponse> {
   try {
@@ -118,8 +137,10 @@ export async function searchPerplexica(
         query,
         focusMode: options?.focusMode || 'webSearch',
         optimizationMode: options?.optimizationMode || 'balanced',
+        perplexicaUrl: options?.serviceURLs?.perplexica,
+        searxngUrl: options?.serviceURLs?.searxng,
       }),
-      signal: AbortSignal.timeout(60000), // Perplexica can take longer due to AI processing
+      signal: AbortSignal.timeout(90000), // Perplexica can take longer due to AI processing
     });
     
     if (!response.ok) {
@@ -143,15 +164,16 @@ export async function searchPerplexica(
  * Search using both engines and merge results
  */
 export async function searchBoth(
-  query: string
+  query: string,
+  serviceURLs?: ServiceURLs
 ): Promise<{
   perplexica: SearchResponse;
   searxng: SearchResponse;
   merged: SearchResult[];
 }> {
   const [perplexica, searxng] = await Promise.all([
-    searchPerplexica(query),
-    searchSearXNG(query),
+    searchPerplexica(query, { serviceURLs }),
+    searchSearXNG(query, { serviceURLs }),
   ]);
   
   // Merge and deduplicate results
@@ -186,10 +208,11 @@ export async function search(
   options?: {
     focusMode?: 'webSearch' | 'academicSearch' | 'writingAssistant';
     categories?: string[];
+    serviceURLs?: ServiceURLs;
   }
 ): Promise<SearchResponse> {
   if (engine === 'both') {
-    const { perplexica, searxng, merged } = await searchBoth(query);
+    const { perplexica, searxng, merged } = await searchBoth(query, options?.serviceURLs);
     return {
       query,
       results: merged,
@@ -201,10 +224,10 @@ export async function search(
   }
   
   if (engine === 'perplexica') {
-    return searchPerplexica(query, options);
+    return searchPerplexica(query, { ...options, serviceURLs: options?.serviceURLs });
   }
   
-  return searchSearXNG(query, { categories: options?.categories });
+  return searchSearXNG(query, { categories: options?.categories, serviceURLs: options?.serviceURLs });
 }
 
 /**

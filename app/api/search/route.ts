@@ -1,21 +1,45 @@
 /**
  * Search API Proxy - Bypasses CORS for Perplexica and SearXNG
+ * 
+ * URLs can be customized via:
+ * 1. Environment variables (PERPLEXICA_URL, SEARXNG_URL)
+ * 2. Request headers (X-Perplexica-URL, X-SearXNG-URL)
+ * 3. Request body (perplexicaUrl, searxngUrl)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const PERPLEXICA_URL = process.env.PERPLEXICA_URL || 'http://localhost:3000';
-const SEARXNG_URL = process.env.SEARXNG_URL || 'http://localhost:4000';
+// Default URLs - can be overridden by env vars, headers, or request body
+const DEFAULT_PERPLEXICA_URL = 'http://localhost:3000';
+const DEFAULT_SEARXNG_URL = 'http://localhost:4000';
+
+function getServiceURLs(request: NextRequest, body?: any): { perplexicaUrl: string; searxngUrl: string } {
+  // Priority: Request body > Headers > Environment variables > Defaults
+  const perplexicaUrl = 
+    body?.perplexicaUrl ||
+    request.headers.get('X-Perplexica-URL') ||
+    process.env.PERPLEXICA_URL ||
+    DEFAULT_PERPLEXICA_URL;
+    
+  const searxngUrl = 
+    body?.searxngUrl ||
+    request.headers.get('X-SearXNG-URL') ||
+    process.env.SEARXNG_URL ||
+    DEFAULT_SEARXNG_URL;
+    
+  return { perplexicaUrl, searxngUrl };
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { engine, query, focusMode, optimizationMode, generateSummary = true } = body;
+    const { perplexicaUrl, searxngUrl } = getServiceURLs(request, body);
     
     if (engine === 'perplexica') {
-      return await searchPerplexica(query, focusMode, optimizationMode);
+      return await searchPerplexica(query, focusMode, optimizationMode, perplexicaUrl, searxngUrl);
     } else if (engine === 'searxng') {
-      return await searchSearXNG(query, body.categories, generateSummary);
+      return await searchSearXNG(query, body.categories, generateSummary, searxngUrl);
     }
     
     return NextResponse.json({ error: 'Invalid engine' }, { status: 400 });
@@ -33,18 +57,19 @@ export async function GET(request: NextRequest) {
   const action = searchParams.get('action');
   
   if (action === 'status') {
-    return await checkStatus();
+    const { perplexicaUrl, searxngUrl } = getServiceURLs(request);
+    return await checkStatus(perplexicaUrl, searxngUrl);
   }
   
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
 
-async function checkStatus() {
+async function checkStatus(perplexicaUrl: string, searxngUrl: string) {
   const status = { perplexica: false, searxng: false };
   
   // Check Perplexica
   try {
-    const response = await fetch(`${PERPLEXICA_URL}/`, {
+    const response = await fetch(`${perplexicaUrl}/`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
@@ -55,7 +80,7 @@ async function checkStatus() {
   
   // Check SearXNG
   try {
-    const response = await fetch(`${SEARXNG_URL}/`, {
+    const response = await fetch(`${searxngUrl}/`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
@@ -69,13 +94,13 @@ async function checkStatus() {
 }
 
 // Fetch Perplexica's configured providers and models
-async function getPerplexicaConfig(): Promise<{
+async function getPerplexicaConfig(perplexicaUrl: string): Promise<{
   chatModel: { providerId: string; model: string } | null;
   embeddingModel: { providerId: string; model: string } | null;
 }> {
   try {
     // Try to get providers from Perplexica
-    const providersResponse = await fetch(`${PERPLEXICA_URL}/api/providers`, {
+    const providersResponse = await fetch(`${perplexicaUrl}/api/providers`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
@@ -105,7 +130,7 @@ async function getPerplexicaConfig(): Promise<{
     }
     
     // Also try the config endpoint
-    const configResponse = await fetch(`${PERPLEXICA_URL}/api/config`, {
+    const configResponse = await fetch(`${perplexicaUrl}/api/config`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
@@ -142,13 +167,15 @@ async function getPerplexicaConfig(): Promise<{
 async function searchPerplexica(
   query: string,
   focusMode?: string,
-  optimizationMode?: string
+  optimizationMode?: string,
+  perplexicaUrl: string = DEFAULT_PERPLEXICA_URL,
+  searxngUrl: string = DEFAULT_SEARXNG_URL
 ) {
   // Perplexica uses Server-Sent Events (SSE) streaming for its API
   // We need to handle the stream and collect the full response
   
   // First, try to get Perplexica's configured providers/models
-  const { chatModel, embeddingModel } = await getPerplexicaConfig();
+  const { chatModel, embeddingModel } = await getPerplexicaConfig(perplexicaUrl);
   
   // Build request - newer Perplexica requires providerId
   const requestBody: Record<string, any> = {
@@ -175,7 +202,7 @@ async function searchPerplexica(
   console.log('Perplexica request:', JSON.stringify(requestBody));
   
   try {
-    const response = await fetch(`${PERPLEXICA_URL}/api/search`, {
+    const response = await fetch(`${perplexicaUrl}/api/search`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -211,7 +238,7 @@ async function searchPerplexica(
     // Fallback to SearXNG with AI summary
     console.log('Falling back to SearXNG with AI summary...');
     try {
-      const searxngResult = await searchSearXNGDirect(query);
+      const searxngResult = await searchSearXNGDirect(query, searxngUrl);
       if (searxngResult) {
         const data = await searxngResult.json();
         
@@ -330,14 +357,14 @@ function parsePerplexicaResponse(data: any, query: string) {
 }
 
 // Direct SearXNG search for fallback
-async function searchSearXNGDirect(query: string) {
+async function searchSearXNGDirect(query: string, searxngUrl: string = DEFAULT_SEARXNG_URL) {
   const params = new URLSearchParams({
     q: query,
     format: 'json',
     language: 'en',
   });
   
-  const response = await fetch(`${SEARXNG_URL}/search?${params}`, {
+  const response = await fetch(`${searxngUrl}/search?${params}`, {
     method: 'GET',
     headers: { 'Accept': 'application/json' },
     signal: AbortSignal.timeout(15000),
@@ -363,12 +390,14 @@ async function searchSearXNGDirect(query: string) {
   }), { headers: { 'Content-Type': 'application/json' } });
 }
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+// Default Ollama URL - can be overridden
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 
 // Generate AI summary of search results using Ollama
 async function generateSearchSummary(
   query: string,
-  results: Array<{ title: string; url: string; snippet: string; source: string }>
+  results: Array<{ title: string; url: string; snippet: string; source: string }>,
+  ollamaUrl: string = DEFAULT_OLLAMA_URL
 ): Promise<string | null> {
   if (results.length === 0) return null;
   
@@ -392,7 +421,7 @@ Write your summary now, using [1], [2], etc. to cite sources:`;
   try {
     console.log('Generating AI summary with Ollama...');
     
-    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const response = await fetch(`${ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -426,7 +455,12 @@ Write your summary now, using [1], [2], etc. to cite sources:`;
   return null;
 }
 
-async function searchSearXNG(query: string, categories?: string[], generateSummary: boolean = true) {
+async function searchSearXNG(
+  query: string, 
+  categories?: string[], 
+  generateSummary: boolean = true,
+  searxngUrl: string = DEFAULT_SEARXNG_URL
+) {
   try {
     const params = new URLSearchParams({
       q: query,
@@ -438,7 +472,7 @@ async function searchSearXNG(query: string, categories?: string[], generateSumma
       params.set('categories', categories.join(','));
     }
     
-    const response = await fetch(`${SEARXNG_URL}/search?${params}`, {
+    const response = await fetch(`${searxngUrl}/search?${params}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',

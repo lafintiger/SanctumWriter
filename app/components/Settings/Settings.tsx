@@ -16,9 +16,11 @@ import {
   Trash2,
   Plus,
   Edit3,
+  Server,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore, WRITING_PRESETS, WritingPreset, GPU_PRESETS, getOptimalSettingsForTier } from '@/lib/store/useSettingsStore';
+import { useSettingsStore, WRITING_PRESETS, WritingPreset, GPU_PRESETS, getOptimalSettingsForTier, DEFAULT_SERVICE_URLS, ServiceURLs } from '@/lib/store/useSettingsStore';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { Reviewer, DEFAULT_REVIEWERS, ReviewerRole } from '@/types/council';
@@ -45,6 +47,9 @@ export function Settings() {
     setCurrentModelInfo,
     hardwareInfo,
     setHardwareInfo,
+    serviceURLs,
+    setServiceURL,
+    resetServiceURLs,
     autoConfigureForModel,
     autoConfigureForHardware,
     selectGPU,
@@ -52,7 +57,7 @@ export function Settings() {
   } = useSettingsStore();
 
   const { provider, model } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'writing' | 'model' | 'hardware' | 'council'>('writing');
+  const [activeTab, setActiveTab] = useState<'writing' | 'model' | 'hardware' | 'council' | 'services'>('writing');
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [isDetectingHardware, setIsDetectingHardware] = useState(false);
 
@@ -131,12 +136,13 @@ export function Settings() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-border overflow-x-auto">
           {[
             { id: 'writing', label: 'Writing Style', icon: BookOpen },
-            { id: 'model', label: 'Model Settings', icon: Sliders },
+            { id: 'model', label: 'Model', icon: Sliders },
             { id: 'hardware', label: 'Hardware', icon: Cpu },
             { id: 'council', label: 'Council', icon: Users },
+            { id: 'services', label: 'Services', icon: Server },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -196,6 +202,14 @@ export function Settings() {
 
           {activeTab === 'council' && (
             <CouncilTab />
+          )}
+
+          {activeTab === 'services' && (
+            <ServicesTab
+              serviceURLs={serviceURLs}
+              onSetServiceURL={setServiceURL}
+              onResetServiceURLs={resetServiceURLs}
+            />
           )}
         </div>
       </div>
@@ -947,6 +961,215 @@ function ReviewerCard({ reviewer, onToggle, onEdit, onDelete, onSetEditor, isEdi
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Services Tab - Configure service URLs
+interface ServicesTabProps {
+  serviceURLs: ServiceURLs;
+  onSetServiceURL: (service: keyof ServiceURLs, url: string) => void;
+  onResetServiceURLs: () => void;
+}
+
+function ServicesTab({ serviceURLs, onSetServiceURL, onResetServiceURLs }: ServicesTabProps) {
+  const [testResults, setTestResults] = useState<Record<string, 'testing' | 'success' | 'error' | null>>({});
+  
+  const services: { key: keyof ServiceURLs; name: string; description: string; defaultPort: number; healthEndpoint: string }[] = [
+    {
+      key: 'ollama',
+      name: 'Ollama',
+      description: 'Local LLM inference server',
+      defaultPort: 11434,
+      healthEndpoint: '/api/tags',
+    },
+    {
+      key: 'lmstudio',
+      name: 'LM Studio',
+      description: 'Alternative local LLM server',
+      defaultPort: 1234,
+      healthEndpoint: '/v1/models',
+    },
+    {
+      key: 'perplexica',
+      name: 'Perplexica',
+      description: 'AI-powered search with summaries',
+      defaultPort: 3000,
+      healthEndpoint: '/api/health',
+    },
+    {
+      key: 'searxng',
+      name: 'SearXNG',
+      description: 'Privacy-respecting search engine',
+      defaultPort: 4000,
+      healthEndpoint: '/healthz',
+    },
+  ];
+  
+  const testConnection = async (key: keyof ServiceURLs, url: string, healthEndpoint: string) => {
+    setTestResults(prev => ({ ...prev, [key]: 'testing' }));
+    
+    try {
+      // Use the search API proxy for Perplexica and SearXNG
+      if (key === 'perplexica' || key === 'searxng') {
+        const response = await fetch(`/api/search?action=status`);
+        const data = await response.json();
+        const isOnline = key === 'perplexica' ? data.perplexica : data.searxng;
+        setTestResults(prev => ({ ...prev, [key]: isOnline ? 'success' : 'error' }));
+      } else {
+        // Direct test for Ollama and LM Studio
+        const response = await fetch(`${url}${healthEndpoint}`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+        });
+        setTestResults(prev => ({ ...prev, [key]: response.ok ? 'success' : 'error' }));
+      }
+    } catch (error) {
+      setTestResults(prev => ({ ...prev, [key]: 'error' }));
+    }
+  };
+  
+  const testAllConnections = () => {
+    services.forEach(service => {
+      testConnection(service.key, serviceURLs[service.key], service.healthEndpoint);
+    });
+  };
+  
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium text-text-primary">Service URLs</h3>
+          <p className="text-sm text-text-secondary mt-1">
+            Configure URLs for Ollama, LM Studio, and search services
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={testAllConnections}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-accent/10 text-accent hover:bg-accent/20 rounded transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Test All
+          </button>
+          <button
+            onClick={onResetServiceURLs}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary hover:bg-border rounded transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset to Defaults
+          </button>
+        </div>
+      </div>
+      
+      {/* Info box */}
+      <div className="flex items-start gap-2 p-3 bg-accent/5 border border-accent/20 rounded-lg text-sm">
+        <Info className="w-4 h-4 mt-0.5 text-accent flex-shrink-0" />
+        <div className="text-text-secondary">
+          <p>If your services run on different ports or machines, update the URLs here.</p>
+          <p className="mt-1">For Docker services, you may need to use <code className="bg-sidebar-bg px-1 rounded">host.docker.internal</code> as the hostname.</p>
+        </div>
+      </div>
+      
+      {/* Service list */}
+      <div className="space-y-4">
+        {services.map((service) => (
+          <div key={service.key} className="bg-editor-bg rounded-lg p-4 border border-border">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-text-primary">{service.name}</h4>
+                  {testResults[service.key] === 'testing' && (
+                    <RefreshCw className="w-4 h-4 animate-spin text-accent" />
+                  )}
+                  {testResults[service.key] === 'success' && (
+                    <span className="flex items-center gap-1 text-xs text-green-400">
+                      <Check className="w-3 h-3" /> Connected
+                    </span>
+                  )}
+                  {testResults[service.key] === 'error' && (
+                    <span className="flex items-center gap-1 text-xs text-red-400">
+                      <X className="w-3 h-3" /> Failed
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-text-secondary">{service.description}</p>
+              </div>
+              <button
+                onClick={() => testConnection(service.key, serviceURLs[service.key], service.healthEndpoint)}
+                className="px-2 py-1 text-xs text-text-secondary hover:text-accent hover:bg-accent/10 rounded transition-colors"
+              >
+                Test
+              </button>
+            </div>
+            
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={serviceURLs[service.key]}
+                onChange={(e) => onSetServiceURL(service.key, e.target.value)}
+                placeholder={DEFAULT_SERVICE_URLS[service.key]}
+                className="flex-1 px-3 py-2 bg-sidebar-bg border border-border rounded text-text-primary text-sm focus:border-accent focus:outline-none font-mono"
+              />
+            </div>
+            
+            <div className="mt-2 text-xs text-text-secondary">
+              Default: <code className="bg-sidebar-bg px-1 rounded">{DEFAULT_SERVICE_URLS[service.key]}</code>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Common configurations */}
+      <div className="bg-editor-bg rounded-lg p-4 border border-border">
+        <h4 className="font-medium text-text-primary mb-3">Common Configurations</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center justify-between p-2 bg-sidebar-bg rounded">
+            <span className="text-text-secondary">Standard local setup</span>
+            <button
+              onClick={() => {
+                onSetServiceURL('ollama', 'http://localhost:11434');
+                onSetServiceURL('lmstudio', 'http://localhost:1234');
+                onSetServiceURL('perplexica', 'http://localhost:3000');
+                onSetServiceURL('searxng', 'http://localhost:4000');
+              }}
+              className="px-2 py-1 text-xs text-accent hover:bg-accent/10 rounded"
+            >
+              Apply
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-2 bg-sidebar-bg rounded">
+            <span className="text-text-secondary">Docker host access (from container)</span>
+            <button
+              onClick={() => {
+                onSetServiceURL('ollama', 'http://host.docker.internal:11434');
+                onSetServiceURL('lmstudio', 'http://host.docker.internal:1234');
+                onSetServiceURL('perplexica', 'http://host.docker.internal:3000');
+                onSetServiceURL('searxng', 'http://host.docker.internal:4000');
+              }}
+              className="px-2 py-1 text-xs text-accent hover:bg-accent/10 rounded"
+            >
+              Apply
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-2 bg-sidebar-bg rounded">
+            <span className="text-text-secondary">Remote server (edit URLs after applying)</span>
+            <button
+              onClick={() => {
+                const host = 'http://192.168.1.100';
+                onSetServiceURL('ollama', `${host}:11434`);
+                onSetServiceURL('lmstudio', `${host}:1234`);
+                onSetServiceURL('perplexica', `${host}:3000`);
+                onSetServiceURL('searxng', `${host}:4000`);
+              }}
+              className="px-2 py-1 text-xs text-accent hover:bg-accent/10 rounded"
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </div>
     </div>
