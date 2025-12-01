@@ -68,13 +68,43 @@ async function checkStatus() {
   return NextResponse.json(status);
 }
 
-// Fetch Perplexica's configured models
-async function getPerplexicaModels(): Promise<{
-  chatModel: { provider: string; model: string } | null;
-  embeddingModel: { provider: string; model: string } | null;
+// Fetch Perplexica's configured providers and models
+async function getPerplexicaConfig(): Promise<{
+  chatModel: { providerId: string; model: string } | null;
+  embeddingModel: { providerId: string; model: string } | null;
 }> {
   try {
-    // Try to get config from Perplexica
+    // Try to get providers from Perplexica
+    const providersResponse = await fetch(`${PERPLEXICA_URL}/api/providers`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+    
+    if (providersResponse.ok) {
+      const providers = await providersResponse.json();
+      console.log('Perplexica providers:', JSON.stringify(providers).slice(0, 1000));
+      
+      // Find Ollama provider
+      const ollamaProvider = providers.find?.((p: any) => 
+        p.type === 'ollama' || p.provider === 'ollama' || p.name?.toLowerCase().includes('ollama')
+      );
+      
+      if (ollamaProvider) {
+        console.log('Found Ollama provider:', JSON.stringify(ollamaProvider));
+        return {
+          chatModel: {
+            providerId: ollamaProvider.id || ollamaProvider.providerId,
+            model: ollamaProvider.chatModel || ollamaProvider.defaultModel || 'llama3.2:latest',
+          },
+          embeddingModel: {
+            providerId: ollamaProvider.id || ollamaProvider.providerId,
+            model: ollamaProvider.embeddingModel || 'nomic-embed-text:latest',
+          },
+        };
+      }
+    }
+    
+    // Also try the config endpoint
     const configResponse = await fetch(`${PERPLEXICA_URL}/api/config`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
@@ -82,28 +112,31 @@ async function getPerplexicaModels(): Promise<{
     
     if (configResponse.ok) {
       const config = await configResponse.json();
-      console.log('Perplexica config:', JSON.stringify(config).slice(0, 500));
+      console.log('Perplexica config:', JSON.stringify(config).slice(0, 1000));
       
-      return {
-        chatModel: config.chatModel || config.chatModelProvider ? {
-          provider: config.chatModelProvider || 'ollama',
-          model: config.chatModel || 'llama3.2:latest',
-        } : null,
-        embeddingModel: config.embeddingModel || config.embeddingModelProvider ? {
-          provider: config.embeddingModelProvider || 'ollama', 
-          model: config.embeddingModel || 'nomic-embed-text:latest',
-        } : null,
-      };
+      // Extract provider IDs from config
+      const chatProviderId = config.chatModelProviderId || config.chatModelProvider?.id || config.selectedChatModelProviderId;
+      const embeddingProviderId = config.embeddingModelProviderId || config.embeddingModelProvider?.id || config.selectedEmbeddingModelProviderId;
+      
+      if (chatProviderId) {
+        return {
+          chatModel: {
+            providerId: chatProviderId,
+            model: config.chatModel || config.selectedChatModel || 'llama3.2:latest',
+          },
+          embeddingModel: {
+            providerId: embeddingProviderId || chatProviderId,
+            model: config.embeddingModel || config.selectedEmbeddingModel || 'nomic-embed-text:latest',
+          },
+        };
+      }
     }
   } catch (error) {
     console.log('Could not fetch Perplexica config:', error);
   }
   
-  // Return default models if config fetch fails
-  return {
-    chatModel: { provider: 'ollama', model: 'llama3.2:latest' },
-    embeddingModel: { provider: 'ollama', model: 'nomic-embed-text:latest' },
-  };
+  console.log('No Perplexica config found, returning null');
+  return { chatModel: null, embeddingModel: null };
 }
 
 async function searchPerplexica(
@@ -114,10 +147,10 @@ async function searchPerplexica(
   // Perplexica uses Server-Sent Events (SSE) streaming for its API
   // We need to handle the stream and collect the full response
   
-  // First, try to get Perplexica's configured models
-  const { chatModel, embeddingModel } = await getPerplexicaModels();
+  // First, try to get Perplexica's configured providers/models
+  const { chatModel, embeddingModel } = await getPerplexicaConfig();
   
-  // Build request - Perplexica REQUIRES chatModel and embeddingModel
+  // Build request - newer Perplexica requires providerId
   const requestBody: Record<string, any> = {
     query: query,
     focusMode: focusMode || 'webSearch',
@@ -125,12 +158,18 @@ async function searchPerplexica(
     history: [],
   };
   
-  // Add models if we got them
+  // Add models with providerId (required by newer Perplexica versions)
   if (chatModel) {
-    requestBody.chatModel = chatModel;
+    requestBody.chatModel = {
+      providerId: chatModel.providerId,
+      model: chatModel.model,
+    };
   }
   if (embeddingModel) {
-    requestBody.embeddingModel = embeddingModel;
+    requestBody.embeddingModel = {
+      providerId: embeddingModel.providerId,
+      model: embeddingModel.model,
+    };
   }
   
   console.log('Perplexica request:', JSON.stringify(requestBody));
