@@ -32,6 +32,8 @@ export function CouncilPanel() {
     reviewPhase,
     isReviewing,
     reviewProgress,
+    modelLoadingStatus,
+    loadedModels,
     toggleReviewer,
     getEnabledReviewers,
     getCommentStats,
@@ -94,6 +96,8 @@ export function CouncilPanel() {
           <ReviewersTab
             reviewers={reviewers}
             reviewProgress={reviewProgress}
+            modelLoadingStatus={modelLoadingStatus}
+            loadedModels={loadedModels}
             isReviewing={isReviewing}
             expandedReviewer={expandedReviewer}
             setExpandedReviewer={setExpandedReviewer}
@@ -131,6 +135,8 @@ export function CouncilPanel() {
 interface ReviewersTabProps {
   reviewers: ReturnType<typeof useCouncilStore.getState>['reviewers'];
   reviewProgress: ReturnType<typeof useCouncilStore.getState>['reviewProgress'];
+  modelLoadingStatus: ReturnType<typeof useCouncilStore.getState>['modelLoadingStatus'];
+  loadedModels: string[];
   isReviewing: boolean;
   expandedReviewer: string | null;
   setExpandedReviewer: (id: string | null) => void;
@@ -140,16 +146,67 @@ interface ReviewersTabProps {
 function ReviewersTab({
   reviewers,
   reviewProgress,
+  modelLoadingStatus,
+  loadedModels,
   isReviewing,
   expandedReviewer,
   setExpandedReviewer,
   toggleReviewer,
 }: ReviewersTabProps) {
+  // Group reviewers by model for display
+  const modelGroups = new Map<string, typeof reviewers>();
+  reviewers.forEach((r) => {
+    const group = modelGroups.get(r.model) || [];
+    group.push(r);
+    modelGroups.set(r.model, group);
+  });
+  
+  const uniqueModels = Array.from(new Set(reviewers.filter(r => r.enabled).map(r => r.model)));
+  
   return (
     <div className="p-2 space-y-1">
+      {/* Model summary */}
+      {uniqueModels.length > 0 && (
+        <div className="p-2 mb-2 bg-editor-bg rounded-lg border border-border">
+          <div className="text-xs text-text-secondary mb-1">Models needed:</div>
+          <div className="flex flex-wrap gap-1">
+            {uniqueModels.map((model) => {
+              const isLoaded = loadedModels.some(m => m === model || m.startsWith(`${model}:`));
+              const loadingState = modelLoadingStatus[model];
+              
+              return (
+                <span
+                  key={model}
+                  className={cn(
+                    'px-2 py-0.5 text-xs rounded font-mono',
+                    isLoaded 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : loadingState === 'loading'
+                        ? 'bg-yellow-500/20 text-yellow-400'
+                        : 'bg-border text-text-secondary'
+                  )}
+                >
+                  {loadingState === 'loading' && '⏳ '}
+                  {loadingState === 'unloading' && '📤 '}
+                  {isLoaded && '✅ '}
+                  {model}
+                </span>
+              );
+            })}
+          </div>
+          {uniqueModels.length > 1 && (
+            <div className="text-xs text-yellow-400 mt-1">
+              ⚠️ Multiple models = VRAM swapping (slower)
+            </div>
+          )}
+        </div>
+      )}
+      
       {reviewers.map((reviewer) => {
         const isExpanded = expandedReviewer === reviewer.id;
         const progress = reviewProgress[reviewer.id];
+        const modelLoading = modelLoadingStatus[reviewer.model];
+        const modelLoaded = loadedModels.some(m => m === reviewer.model || m.startsWith(`${reviewer.model}:`));
         
         return (
           <div
@@ -157,7 +214,9 @@ function ReviewersTab({
             className={cn(
               'rounded-lg border transition-colors',
               reviewer.enabled
-                ? 'border-accent/30 bg-accent/5'
+                ? reviewer.isEditor
+                  ? 'border-pink-500/30 bg-pink-500/5'
+                  : 'border-accent/30 bg-accent/5'
                 : 'border-border bg-editor-bg'
             )}
           >
@@ -175,7 +234,9 @@ function ReviewersTab({
                 className={cn(
                   'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
                   reviewer.enabled
-                    ? 'bg-accent border-accent text-white'
+                    ? reviewer.isEditor
+                      ? 'bg-pink-500 border-pink-500 text-white'
+                      : 'bg-accent border-accent text-white'
                     : 'border-border hover:border-accent'
                 )}
               >
@@ -185,25 +246,39 @@ function ReviewersTab({
               <span className="text-lg">{reviewer.icon}</span>
               
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-text-primary truncate">
+                <div className="text-sm font-medium text-text-primary truncate flex items-center gap-1">
                   {reviewer.name}
+                  {reviewer.isEditor && (
+                    <span className="text-xs bg-pink-500/20 text-pink-400 px-1 rounded">Editor</span>
+                  )}
                 </div>
               </div>
               
-              {/* Progress indicator */}
-              {progress && (
-                <div className="flex items-center">
-                  {progress === 'in_progress' && (
-                    <Loader2 className="w-4 h-4 text-accent animate-spin" />
-                  )}
-                  {progress === 'complete' && (
-                    <Check className="w-4 h-4 text-green-500" />
-                  )}
-                  {progress === 'error' && (
-                    <AlertCircle className="w-4 h-4 text-red-500" />
-                  )}
-                </div>
-              )}
+              {/* Progress/Loading indicator */}
+              <div className="flex items-center gap-1">
+                {/* Model loading state */}
+                {reviewer.enabled && modelLoading === 'loading' && (
+                  <span className="text-xs text-yellow-400">Loading...</span>
+                )}
+                {reviewer.enabled && modelLoaded && !progress && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" title="Model loaded" />
+                )}
+                
+                {/* Review progress */}
+                {progress && (
+                  <>
+                    {progress === 'in_progress' && (
+                      <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                    )}
+                    {progress === 'complete' && (
+                      <Check className="w-4 h-4 text-green-500" />
+                    )}
+                    {progress === 'error' && (
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                    )}
+                  </>
+                )}
+              </div>
               
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-text-secondary" />
@@ -218,7 +293,13 @@ function ReviewersTab({
                 <p className="text-text-secondary">{reviewer.description}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-text-secondary">Model:</span>
-                  <span className="text-text-primary font-mono">{reviewer.model}</span>
+                  <span className={cn(
+                    'font-mono px-1 rounded',
+                    modelLoaded ? 'bg-green-500/10 text-green-400' : 'text-text-primary'
+                  )}>
+                    {reviewer.model}
+                    {modelLoaded && ' ✅'}
+                  </span>
                 </div>
                 <div
                   className="w-full h-1 rounded"

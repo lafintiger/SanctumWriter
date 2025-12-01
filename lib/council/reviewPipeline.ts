@@ -5,13 +5,32 @@
  * 1. Sending document content to each enabled reviewer model
  * 2. Parsing their feedback into structured comments
  * 3. Coordinating sequential or parallel reviews
+ * 4. VRAM-aware model loading/unloading between reviewers
  */
 
 import { Reviewer, ReviewComment } from '@/types/council';
 import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { useSettingsStore } from '@/lib/store/useSettingsStore';
+import { ensureModelLoaded, getLoadedModels, formatBytes } from '@/lib/llm/modelManager';
 
 const OLLAMA_URL = 'http://localhost:11434';
+
+// Track the last model we used to optimize swapping
+let lastUsedModel: string | null = null;
+
+/**
+ * Reset the model tracking (useful when starting a new session)
+ */
+export function resetModelTracking(): void {
+  lastUsedModel = null;
+}
+
+/**
+ * Get the currently tracked model
+ */
+export function getCurrentTrackedModel(): string | null {
+  return lastUsedModel;
+}
 
 interface ParsedFeedback {
   line: number;
@@ -154,6 +173,7 @@ Only report actual issues or opportunities for improvement. Be specific and cons
 
 /**
  * Run a single reviewer on the document
+ * Handles model loading/unloading to manage VRAM
  */
 export async function runReviewer(
   reviewer: Reviewer,
@@ -165,6 +185,23 @@ export async function runReviewer(
   const { temperature, topP, topK } = useSettingsStore.getState();
   
   setReviewProgress(reviewer.id, 'in_progress');
+  
+  // Check if we need to switch models
+  const needsModelSwitch = lastUsedModel !== reviewer.model;
+  
+  if (needsModelSwitch) {
+    onProgress?.(`🔄 Preparing ${reviewer.model} for ${reviewer.name}...`);
+    
+    // Ensure the model is loaded (will unload others first)
+    const loaded = await ensureModelLoaded(reviewer.model, onProgress);
+    
+    if (!loaded) {
+      throw new Error(`Failed to load model ${reviewer.model}`);
+    }
+    
+    lastUsedModel = reviewer.model;
+  }
+  
   onProgress?.(`${reviewer.icon} ${reviewer.name} is reviewing...`);
   
   try {
@@ -363,6 +400,7 @@ export async function runReviewPipelineParallel(
 
 /**
  * Run the full council review pipeline with Editor synthesis
+ * Optimizes model loading by grouping reviewers with the same model
  */
 export async function runFullCouncilReview(
   content: string,
@@ -398,15 +436,37 @@ export async function runFullCouncilReview(
   const sessionId = currentSession?.id || 'manual';
   initReviewDocument(sessionId, documentPath, content);
   
-  onProgress?.(`📋 Council convened with ${councilReviewers.length} reviewer(s)...`);
+  // Reset model tracking for fresh start
+  resetModelTracking();
+  
+  // Check initial VRAM state
+  const initialModels = await getLoadedModels();
+  if (initialModels.length > 0) {
+    const vramUsed = initialModels.reduce((sum, m) => sum + m.sizeVram, 0);
+    onProgress?.(`📊 Current VRAM: ${formatBytes(vramUsed)} (${initialModels.map(m => m.name).join(', ')})`);
+  }
+  
+  // Group reviewers by model to minimize swapping
+  const reviewersByModel = new Map<string, typeof councilReviewers>();
+  councilReviewers.forEach((r) => {
+    const group = reviewersByModel.get(r.model) || [];
+    group.push(r);
+    reviewersByModel.set(r.model, group);
+  });
+  
+  const uniqueModels = Array.from(reviewersByModel.keys());
+  onProgress?.(`📋 Council convened: ${councilReviewers.length} reviewer(s) using ${uniqueModels.length} model(s)`);
   
   // Phase 1: Council Reviews
   setReviewPhase('council_reviewing');
   
-  for (const reviewer of councilReviewers) {
-    try {
-      onProgress?.(`${reviewer.icon} ${reviewer.name} is reviewing...`);
-      const comments = await runReviewer(reviewer, content, selection, onProgress);
+  // Process reviewers grouped by model to minimize swapping
+  for (const [modelName, modelReviewers] of reviewersByModel) {
+    onProgress?.(`🔄 Loading ${modelName} (${modelReviewers.length} reviewer(s))...`);
+    
+    for (const reviewer of modelReviewers) {
+      try {
+        const comments = await runReviewer(reviewer, content, selection, onProgress);
       
       // Create summary for this reviewer
       const reviewerSummary = `${reviewer.name} found ${comments.length} item(s): ${
@@ -423,6 +483,7 @@ export async function runFullCouncilReview(
       console.error(`Council reviewer ${reviewer.name} failed:`, error);
       onProgress?.(`${reviewer.icon} ${reviewer.name} failed`);
     }
+    }
   }
   
   // Phase 2: Editor Synthesis
@@ -431,7 +492,7 @@ export async function runFullCouncilReview(
     onProgress?.(`${editor.icon} ${editor.name} is synthesizing feedback...`);
     
     try {
-      const synthesis = await runEditorSynthesis(editor, content, documentPath);
+      const synthesis = await runEditorSynthesis(editor, content, documentPath, onProgress);
       setEditorSynthesis(synthesis);
       onProgress?.(`${editor.icon} Editor synthesis complete`);
     } catch (error) {
@@ -449,13 +510,25 @@ export async function runFullCouncilReview(
 
 /**
  * Run the Editor to synthesize council feedback
+ * Handles model loading for the Editor
  */
 async function runEditorSynthesis(
   editor: Reviewer,
   originalContent: string,
-  documentPath: string
+  documentPath: string,
+  onProgress?: (status: string) => void
 ): Promise<NonNullable<import('@/types/council').ReviewDocument['editorSynthesis']>> {
   const { currentReviewDocument } = useCouncilStore.getState();
+  
+  // Ensure Editor's model is loaded
+  if (lastUsedModel !== editor.model) {
+    onProgress?.(`🔄 Loading Editor model: ${editor.model}...`);
+    const loaded = await ensureModelLoaded(editor.model, onProgress);
+    if (!loaded) {
+      throw new Error(`Failed to load Editor model ${editor.model}`);
+    }
+    lastUsedModel = editor.model;
+  }
   const { temperature, topP, topK } = useSettingsStore.getState();
   
   if (!currentReviewDocument) {
