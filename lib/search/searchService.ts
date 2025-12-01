@@ -76,7 +76,7 @@ export async function searchSearXNG(
         query,
         categories: options?.categories,
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(90000), // 90 seconds - AI summary takes time
     });
     
     if (!response.ok) {
