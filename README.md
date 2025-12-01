@@ -65,23 +65,85 @@ A local-first markdown editor that uses your own LLMs (Ollama/LM Studio) as a co
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Prerequisites & Dependencies
 
-You need one of the following running locally:
+SanctumWriter integrates with several local services. Here's what you need:
 
-**Option 1: Ollama** (Recommended)
+#### System Requirements
+
+| Requirement | Version | Install Link |
+|-------------|---------|--------------|
+| **[Node.js](https://nodejs.org)** | 18+ | [nodejs.org](https://nodejs.org) |
+| **npm** | Included with Node.js | — |
+
+#### LLM Backend (Pick One)
+
+| # | Service | Purpose | Install Link |
+|---|---------|---------|--------------|
+| 1 | **[Ollama](https://ollama.ai)** ⭐ | Local LLM inference (recommended) | [ollama.ai](https://ollama.ai) |
+| — | *OR* **[LM Studio](https://lmstudio.ai)** | Alternative local LLM with GUI | [lmstudio.ai](https://lmstudio.ai) |
+
+#### Optional (For Advanced Features)
+
+| # | Service | Purpose | Install Link | Requires |
+|---|---------|---------|--------------|----------|
+| 2 | **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** | Container runtime for search services | [docker.com](https://www.docker.com/products/docker-desktop/) | — |
+| 3 | **[SearXNG](https://github.com/searxng/searxng)** | Privacy-focused web search | [GitHub](https://github.com/searxng/searxng) | Docker |
+| 4 | **[Perplexica](https://github.com/ItzCrazyKns/Perplexica)** | AI-powered search with summaries | [GitHub](https://github.com/ItzCrazyKns/Perplexica) | Docker + Ollama |
+
+#### Installation Order
+
+```
+1. Docker Desktop (if using search features)
+      ↓
+2. Ollama OR LM Studio (required for AI)
+      ↓
+3. SearXNG (optional - fact-checking)
+      ↓
+4. Perplexica (optional - AI search)
+      ↓
+5. SanctumWriter
+```
+
+---
+
+### Setting Up Ollama (Recommended)
+
 ```bash
-# Install from https://ollama.ai
-ollama pull qwen3:latest    # Recommended for writing
+# 1. Install Ollama from https://ollama.ai
+
+# 2. Pull a writing-focused model
+ollama pull qwen3:latest
+
+# 3. Start the server (runs on port 11434)
 ollama serve
 ```
 
-**Option 2: LM Studio**
-1. Download from https://lmstudio.ai
-2. Load a model
-3. Start the local server
+### Setting Up LM Studio (Alternative)
 
-### Installation
+1. Download from [lmstudio.ai](https://lmstudio.ai)
+2. Load a model (e.g., Llama 3, Mistral, Qwen)
+3. Go to **Local Server** tab → **Start Server** (runs on port 1234)
+
+### Setting Up Search Services (Optional)
+
+**SearXNG** (Privacy-focused search):
+```bash
+# Using Docker
+docker run -d --name searxng -p 4000:8080 searxng/searxng
+```
+
+**Perplexica** (AI-powered search):
+```bash
+# Clone and follow setup instructions
+git clone https://github.com/ItzCrazyKns/Perplexica.git
+cd Perplexica
+# See their README for Docker setup (runs on port 3000)
+```
+
+---
+
+### Installing SanctumWriter
 
 ```bash
 # Clone the repo
@@ -129,14 +191,16 @@ Open **http://localhost:3125** in your browser.
 
 ### Service URLs (Settings Panel)
 
-Configure your local services in the Settings modal:
+Configure your local services in the Settings modal. All URLs are customizable if you use non-default ports:
 
-| Service | Default URL | Purpose |
-|---------|-------------|---------|
-| Ollama | `http://localhost:11434` | Local LLM inference |
-| LM Studio | `http://localhost:1234` | Alternative local LLM |
-| SearXNG | `http://localhost:4000` | Privacy-focused search |
-| Perplexica | `http://localhost:3000` | AI-powered search |
+| Service | Default URL | Purpose | Project |
+|---------|-------------|---------|---------|
+| Ollama | `http://localhost:11434` | Local LLM inference | [ollama.ai](https://ollama.ai) |
+| LM Studio | `http://localhost:1234` | Alternative local LLM | [lmstudio.ai](https://lmstudio.ai) |
+| SearXNG | `http://localhost:4000` | Privacy-focused search | [GitHub](https://github.com/searxng/searxng) |
+| Perplexica | `http://localhost:3000` | AI-powered search | [GitHub](https://github.com/ItzCrazyKns/Perplexica) |
+
+> 💡 **Tip**: If running services in Docker, use `localhost:PORT` — SanctumWriter runs on your host machine and can reach Docker containers via localhost.
 
 ### Workspace Folder
 
