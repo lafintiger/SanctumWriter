@@ -1,7 +1,7 @@
 # SanctumWriter - Development Documentation
 
 > **Last Updated:** December 1, 2025  
-> **Version:** 1.0.0  
+> **Version:** 1.2.0  
 > **Repository:** https://github.com/lafintiger/SanctumWriter
 
 ## Table of Contents
@@ -79,12 +79,14 @@ The app detects and adapts to your hardware:
 | **Zustand** | 4.x | State management |
 | **Lucide React** | Latest | Icons |
 | **react-markdown** | Latest | Markdown preview |
+| **marked** | Latest | Markdown to HTML conversion |
 
 ### Backend (API Routes)
 | Technology | Purpose |
 |------------|---------|
-| **Next.js API Routes** | File operations, LLM proxy, search proxy |
+| **Next.js API Routes** | File operations, LLM proxy, search proxy, document conversion |
 | **Node.js fs module** | Local file system access |
+| **Python (optional)** | Docling document conversion |
 
 ### External Services (Local)
 | Service | Default Port | Purpose |
@@ -103,29 +105,45 @@ SanctumWriter/
 ├── app/                          # Next.js App Router
 │   ├── api/                      # API Routes
 │   │   ├── files/               # File system operations
-│   │   │   └── route.ts         # List, read, write, delete files
+│   │   │   ├── route.ts         # List files, create new files
+│   │   │   └── [...path]/       # Read, write, delete specific files
+│   │   │       └── route.ts
 │   │   ├── models/              # LLM model listing
 │   │   │   └── route.ts         # Get available models from Ollama/LM Studio
 │   │   ├── model-info/          # Model metadata
 │   │   │   └── route.ts         # Get model details (size, context, etc.)
-│   │   └── search/              # Search proxy
-│   │       └── route.ts         # Proxy for Perplexica/SearXNG (CORS bypass)
+│   │   ├── search/              # Search proxy
+│   │   │   └── route.ts         # Proxy for Perplexica/SearXNG (CORS bypass)
+│   │   ├── workspace/           # Workspace management
+│   │   │   └── route.ts         # Get/set workspace folder path
+│   │   └── convert/             # Document conversion
+│   │       └── route.ts         # Docling PDF/DOCX to Markdown
 │   ├── components/              # React components
 │   │   ├── Chat/                # AI chat interface
-│   │   │   └── ChatPanel.tsx    # Main chat component with streaming
+│   │   │   └── Chat.tsx         # Main chat component with streaming
 │   │   ├── Council/             # Council of Writers feature
 │   │   │   └── CouncilPanel.tsx # Multi-model review interface
+│   │   ├── Convert/             # Document conversion
+│   │   │   └── ConvertPanel.tsx # Docling conversion UI
 │   │   ├── Editor/              # Document editor
-│   │   │   ├── MarkdownEditor.tsx    # CodeMirror wrapper
-│   │   │   └── EditorToolbar.tsx     # Formatting toolbar
+│   │   │   ├── Editor.tsx       # CodeMirror wrapper
+│   │   │   └── WritingStatsBar.tsx # Word count, readability metrics
+│   │   ├── Export/              # Export functionality
+│   │   │   └── ExportModal.tsx  # PDF/DOCX/HTML export
 │   │   ├── FileTree/            # File browser
 │   │   │   └── FileTree.tsx     # Sidebar file list
 │   │   ├── Header/              # App header
-│   │   │   └── Header.tsx       # Model selector, settings, etc.
+│   │   │   └── Header.tsx       # Model selector, settings, toggles
+│   │   ├── Outline/             # Document outline
+│   │   │   └── OutlinePanel.tsx # Heading navigation
+│   │   ├── PromptLibrary/       # Prompt management
+│   │   │   └── PromptLibraryPanel.tsx # Save/reuse prompts
 │   │   ├── Research/            # Search/research panel
 │   │   │   └── ResearchPanel.tsx # SearXNG/Perplexica integration
-│   │   └── Settings/            # Settings modal
-│   │       └── Settings.tsx     # All settings tabs
+│   │   ├── Settings/            # Settings modal
+│   │   │   └── Settings.tsx     # All settings tabs
+│   │   └── Workflow/            # Writing workflow
+│   │       └── WorkflowPanel.tsx # Checklist/progress tracker
 │   ├── globals.css              # Global styles & CSS variables
 │   ├── layout.tsx               # Root layout
 │   └── page.tsx                 # Main page component
@@ -140,18 +158,28 @@ SanctumWriter/
 │   ├── search/                  # Search integration
 │   │   └── searchService.ts     # Perplexica/SearXNG client
 │   ├── store/                   # Zustand stores
-│   │   ├── useAppStore.ts       # Main app state (documents, UI)
+│   │   ├── useAppStore.ts       # Main app state (documents, UI, focus mode)
 │   │   ├── useCouncilStore.ts   # Council of Writers state
+│   │   ├── useOutlineStore.ts   # Document outline state
+│   │   ├── usePromptLibraryStore.ts # Prompt library state
 │   │   ├── useSearchStore.ts    # Research panel state
-│   │   └── useSettingsStore.ts  # Settings & hardware state
-│   └── utils.ts                 # Utility functions (cn, etc.)
+│   │   ├── useSettingsStore.ts  # Settings, hardware, services, workspace
+│   │   └── useWorkflowStore.ts  # Writing workflow state
+│   ├── utils/                   # Utility functions
+│   │   ├── exportDocument.ts    # PDF/DOCX/HTML export logic
+│   │   └── writingStats.ts      # Word count, readability calculations
+│   └── utils.ts                 # General utilities (cn, etc.)
+├── scripts/                     # Helper scripts
+│   └── convert_document.py      # Docling conversion script
 ├── types/                       # TypeScript type definitions
 │   └── council.ts               # Council types, reviewer configs
 ├── public/                      # Static assets
 ├── package.json                 # Dependencies & scripts
+├── requirements.txt             # Python dependencies (Docling)
 ├── tailwind.config.ts           # Tailwind configuration
 ├── tsconfig.json                # TypeScript configuration
-└── DEVELOPMENT.md               # This file
+├── DEVELOPMENT.md               # This file
+└── WRITING_WORKFLOW.md          # User workflow guide
 ```
 
 ---
@@ -172,12 +200,14 @@ SanctumWriter/
 - cursorPosition: { line, col }         // Editor cursor
 - chatMessages: Message[]               // Chat history
 - isGenerating: boolean                 // AI generation in progress
+- isFocusMode: boolean                  // Focus mode active
 
 // Key actions:
 - setModel(model)                       // Change active model
 - loadDocument(path)                    // Load file from disk
 - updateDocumentContent(content)        // Update editor content
 - sendMessage(message)                  // Send chat message to AI
+- toggleFocusMode()                     // Toggle distraction-free mode
 ```
 
 #### `useSettingsStore.ts` - Settings & Hardware
@@ -188,12 +218,14 @@ SanctumWriter/
 - contextLength: number                  // Active context window
 - hardwareInfo: HardwareInfo            // GPU detection results
 - serviceURLs: ServiceURLs              // Custom service endpoints
+- workspacePath: string                 // User-selected workspace folder
 
 // Key actions:
 - setWritingPreset(preset)              // Apply preset parameters
 - selectGPU(gpuId)                      // Manual GPU selection
 - optimizeForWriting()                  // Auto-optimize settings
 - setServiceURL(service, url)           // Custom port configuration
+- setWorkspacePath(path)                // Set workspace folder
 ```
 
 #### `useCouncilStore.ts` - Council of Writers
@@ -212,13 +244,49 @@ SanctumWriter/
 - completeReview()                      // Finish review session
 ```
 
+#### `useWorkflowStore.ts` - Writing Workflow
+```typescript
+// Key state:
+- workflows: Record<string, Workflow>   // Per-document workflows
+- showWorkflowPanel: boolean            // Panel visibility
+
+// Key actions:
+- initializeWorkflow(documentPath)      // Create workflow for document
+- toggleTask(docPath, stageId, taskId)  // Mark task complete/incomplete
+- getProgress(documentPath)             // Get completion percentage
+- getCurrentStage(documentPath)         // Get active workflow stage
+```
+
+#### `useOutlineStore.ts` - Document Outline
+```typescript
+// Key state:
+- outline: Heading[]                    // Parsed markdown headings
+- showOutlinePanel: boolean             // Panel visibility
+
+// Key actions:
+- setOutline(headings)                  // Update outline from document
+- toggleOutlinePanel()                  // Show/hide panel
+```
+
+#### `usePromptLibraryStore.ts` - Prompt Library
+```typescript
+// Key state:
+- prompts: Prompt[]                     // Saved prompts
+- showPromptLibraryPanel: boolean       // Panel visibility
+
+// Key actions:
+- addPrompt(prompt)                     // Save new prompt
+- editPrompt(id, updates)               // Modify existing prompt
+- deletePrompt(id)                      // Remove prompt
+```
+
 ### LLM Integration
 
-#### Chat Flow (ChatPanel.tsx → Ollama)
+#### Chat Flow (Chat.tsx → Ollama)
 ```
 1. User types message
-2. ChatPanel calls sendMessage()
-3. Build prompt with system message + history + document context
+2. Chat calls sendMessage()
+3. Build prompt with system message + workflow context + history + document context
 4. POST to Ollama /api/chat with stream: true
 5. Parse SSE stream, update UI token-by-token
 6. Detect tool calls in response (JSON blocks)
@@ -303,6 +371,29 @@ API Route (/api/search) - CORS proxy
          Display in Panel
 ```
 
+### Writing Stats (lib/utils/writingStats.ts)
+
+#### Metrics Calculated
+```typescript
+countWords(text)              // Word count
+countCharacters(text)         // Character count
+countSentences(text)          // Sentence count
+countParagraphs(text)         // Paragraph count
+calculateFleschKincaid(text)  // Readability grade level
+calculateReadabilityScores(text) // Combined metrics
+```
+
+### Export System (lib/utils/exportDocument.ts)
+
+#### Supported Formats
+```typescript
+exportToPdf(content, filename)   // PDF via browser print
+exportToDocx(content, filename)  // DOCX via docx library
+exportToHtml(content, filename)  // HTML with styling
+exportToTxt(content, filename)   // Plain text
+exportToMd(content, filename)    // Raw markdown
+```
+
 ---
 
 ## Features Implemented
@@ -354,6 +445,66 @@ API Route (/api/search) - CORS proxy
 - [x] Quick-apply presets (local, Docker, remote)
 - [x] Settings persistence in localStorage
 
+### Workflow System ✅
+- [x] Interactive writing workflow checklist
+- [x] Per-document progress tracking
+- [x] Stage-based task organization
+- [x] Notes section for each document
+- [x] AI workflow awareness (system prompt integration)
+- [x] Toggleable workflow panel
+
+### Focus Mode ✅
+- [x] Distraction-free writing mode
+- [x] Hides sidebar, chat, panels when active
+- [x] Quick toggle from header
+
+### Writing Stats ✅
+- [x] Real-time word count
+- [x] Character count
+- [x] Sentence count
+- [x] Paragraph count
+- [x] Stats bar in editor footer
+
+### Readability Metrics ✅
+- [x] Flesch-Kincaid Grade Level
+- [x] Real-time updates as you type
+- [x] Display in stats bar
+
+### Outline View ✅
+- [x] Auto-generated from markdown headings
+- [x] Collapsible tree structure
+- [x] Click to navigate to heading
+- [x] Toggleable panel
+
+### PDF/DOCX Export ✅
+- [x] Export to PDF (via browser print)
+- [x] Export to DOCX
+- [x] Export to HTML
+- [x] Export to TXT
+- [x] Export raw Markdown
+- [x] Export modal with options
+
+### Prompt Library ✅
+- [x] Save custom prompts
+- [x] Built-in prompts for common tasks
+- [x] Category organization
+- [x] Search prompts
+- [x] Insert prompts into chat
+- [x] Edit and delete prompts
+
+### Configurable Workspace ✅
+- [x] Choose any local folder as workspace
+- [x] Obsidian vault compatibility
+- [x] Folder browser in settings
+- [x] Persistent workspace path
+
+### Document Conversion (Docling) ✅
+- [x] Convert PDF to Markdown
+- [x] Convert DOCX to Markdown
+- [x] Convert PPTX to Markdown
+- [x] Python script integration
+- [x] Conversion panel UI
+
 ### Core Editor Features ✅
 - [x] CodeMirror 6 markdown editor
 - [x] Syntax highlighting
@@ -375,6 +526,12 @@ API Route (/api/search) - CORS proxy
 4. **Council Reviews** - Multi-model review with VRAM management
 5. **Search with AI Summaries** - SearXNG + Ollama summarization
 6. **Customizable Services** - Works with different port configurations
+7. **Writing Workflow** - Guided checklist with AI awareness
+8. **Focus Mode** - Clean distraction-free writing
+9. **Writing Stats** - Real-time metrics and readability
+10. **Document Export** - Multiple format support
+11. **Prompt Library** - Reusable prompt management
+12. **Workspace Selection** - Obsidian compatibility
 
 ### What Needs Attention
 1. **Perplexica Integration** - Works but depends on Perplexica's configuration
@@ -392,31 +549,23 @@ API Route (/api/search) - CORS proxy
 
 ## Future Roadmap
 
-### High Priority (Next Up)
+### Medium Priority (Remaining)
 | Feature | Description | Complexity |
 |---------|-------------|------------|
-| **Version History** | Track document revisions, diff view, rollback | Medium |
-| **Focus Mode** | Distraction-free writing, hide UI elements | Low |
-| **Writing Goals** | Word count targets, session tracking | Low |
-| **Readability Metrics** | Flesch-Kincaid, sentence complexity | Low |
-
-### Medium Priority
-| Feature | Description | Complexity |
-|---------|-------------|------------|
-| **Session Memory** | Remember context across browser sessions | Medium |
-| **Custom Personas** | AI writing styles/voices | Medium |
-| **Prompt Library** | Saved prompts for reuse | Low |
-| **Outline View** | Document structure, heading navigation | Medium |
-| **PDF Export** | Export documents as PDF | Medium |
-| **DOCX Export** | Export as Word documents | Medium |
+| **Session Memory** | AI remembers context across browser sessions | Medium |
+| **Custom Personas** | AI writing styles/voices (editor, coach, critic) | Medium |
 
 ### Lower Priority
 | Feature | Description | Complexity |
 |---------|-------------|------------|
+| **Citation Formats** | APA, MLA, Chicago style management | Medium |
 | **Bibliography Generation** | Automatic reference list | High |
 | **Multi-Document Projects** | Project-level organization | High |
-| **Citation Formats** | Academic citation management | Medium |
-| **Collaboration** | Multi-user editing (complex, may conflict with "local" philosophy) | Very High |
+
+### Deferred
+| Feature | Description | Notes |
+|---------|-------------|-------|
+| **Perplexica Integration** | Full AI-powered search | Depends on Perplexica API stability |
 
 ---
 
@@ -436,6 +585,7 @@ API Route (/api/search) - CORS proxy
 1. **Ollama Required** - Core functionality needs Ollama running
 2. **Search Optional** - Research features need Perplexica or SearXNG
 3. **Port Conflicts** - Default ports may conflict with other apps
+4. **Docling Optional** - PDF conversion needs Python + docling installed
 
 ---
 
@@ -445,6 +595,7 @@ API Route (/api/search) - CORS proxy
 - Node.js 18+ 
 - npm or yarn
 - Ollama installed and running
+- (Optional) Python 3.10+ for Docling conversion
 - (Optional) SearXNG for search features
 - (Optional) Perplexica for AI-powered search
 
@@ -454,8 +605,11 @@ API Route (/api/search) - CORS proxy
 git clone https://github.com/lafintiger/SanctumWriter.git
 cd SanctumWriter
 
-# Install dependencies
+# Install Node dependencies
 npm install
+
+# (Optional) Install Python dependencies for Docling
+pip install -r requirements.txt
 
 # Start development server
 npm run dev
@@ -504,8 +658,37 @@ docker run -d -p 8080:8080 searxng/searxng
 
 ### Adding a New Tool for AI
 1. Add tool definition in `lib/llm/tools.ts`
-2. Add handler in `ChatPanel.tsx` tool execution
+2. Add handler in `Chat.tsx` tool execution
 3. Update system prompt to describe the tool
+
+### Adding a New Zustand Store
+1. Create `lib/store/use[Name]Store.ts`
+2. Define interface with state and actions
+3. Use `persist` middleware if needed for localStorage
+4. Import and use in components
+
+### Adding a New Panel
+1. Create component in `app/components/[Panel]/`
+2. Add visibility state to appropriate store
+3. Add toggle button in Header
+4. Add conditional render in `page.tsx`
+
+---
+
+## Quick Reference: File Locations
+
+| Feature | Key Files |
+|---------|-----------|
+| **Main Layout** | `app/page.tsx` |
+| **AI Chat** | `app/components/Chat/Chat.tsx`, `lib/llm/tools.ts` |
+| **Council** | `app/components/Council/CouncilPanel.tsx`, `lib/council/reviewPipeline.ts` |
+| **Editor** | `app/components/Editor/Editor.tsx` |
+| **Settings** | `app/components/Settings/Settings.tsx`, `lib/store/useSettingsStore.ts` |
+| **Workflow** | `app/components/Workflow/WorkflowPanel.tsx`, `lib/store/useWorkflowStore.ts` |
+| **Search** | `app/components/Research/ResearchPanel.tsx`, `lib/search/searchService.ts` |
+| **Export** | `app/components/Export/ExportModal.tsx`, `lib/utils/exportDocument.ts` |
+| **Stats** | `app/components/Editor/WritingStatsBar.tsx`, `lib/utils/writingStats.ts` |
+| **Docling** | `app/components/Convert/ConvertPanel.tsx`, `scripts/convert_document.py` |
 
 ---
 
@@ -518,4 +701,3 @@ This is a personal project. Feel free to fork and modify for your own use.
 ---
 
 *This document should be updated whenever significant changes are made to the architecture or features.*
-
