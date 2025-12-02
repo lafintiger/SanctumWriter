@@ -174,19 +174,32 @@ function estimateVRAMFromRenderer(renderer: string): number | null {
     return null;
   }
   
-  // Apple GPUs
+  // Apple GPUs (unified memory - GPU can access all system RAM)
+  // Values represent max unified memory for each chip variant
   if (r.includes('apple')) {
-    if (r.includes('m3 max')) return 40960;
-    if (r.includes('m3 pro')) return 18432;
-    if (r.includes('m3')) return 8192;
-    if (r.includes('m2 ultra')) return 76800;
-    if (r.includes('m2 max')) return 38912;
-    if (r.includes('m2 pro')) return 19456;
-    if (r.includes('m2')) return 8192;
-    if (r.includes('m1 ultra')) return 65536;
-    if (r.includes('m1 max')) return 32768;
-    if (r.includes('m1 pro')) return 16384;
-    if (r.includes('m1')) return 8192;
+    // M4 series
+    if (r.includes('m4 ultra')) return 524288; // 512GB max
+    if (r.includes('m4 max')) return 131072;   // 128GB max
+    if (r.includes('m4 pro')) return 65536;    // 64GB max
+    if (r.includes('m4')) return 32768;        // 32GB max
+    
+    // M3 series
+    if (r.includes('m3 ultra')) return 524288; // 512GB max (your config!)
+    if (r.includes('m3 max')) return 131072;   // 128GB max
+    if (r.includes('m3 pro')) return 36864;    // 36GB max
+    if (r.includes('m3')) return 24576;        // 24GB max
+    
+    // M2 series
+    if (r.includes('m2 ultra')) return 196608; // 192GB max
+    if (r.includes('m2 max')) return 98304;    // 96GB max
+    if (r.includes('m2 pro')) return 32768;    // 32GB max
+    if (r.includes('m2')) return 24576;        // 24GB max
+    
+    // M1 series
+    if (r.includes('m1 ultra')) return 131072; // 128GB max
+    if (r.includes('m1 max')) return 65536;    // 64GB max
+    if (r.includes('m1 pro')) return 32768;    // 32GB max
+    if (r.includes('m1')) return 16384;        // 16GB max
     
     return 8192;
   }
