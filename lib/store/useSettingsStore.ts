@@ -67,19 +67,41 @@ export const GPU_PRESETS: GPUPreset[] = [
   { id: 'rx7700xt', name: 'AMD RX 7700 XT', vendor: 'amd', vramMB: 12288, tier: 'high' },
   { id: 'rx7600', name: 'AMD RX 7600', vendor: 'amd', vramMB: 8192, tier: 'medium' },
   
-  // Apple Silicon
-  { id: 'm3ultra', name: 'Apple M3 Ultra', vendor: 'apple', vramMB: 98304, tier: 'ultra' },
-  { id: 'm3max', name: 'Apple M3 Max', vendor: 'apple', vramMB: 40960, tier: 'ultra' },
-  { id: 'm3pro', name: 'Apple M3 Pro', vendor: 'apple', vramMB: 18432, tier: 'high' },
-  { id: 'm3', name: 'Apple M3', vendor: 'apple', vramMB: 8192, tier: 'medium' },
-  { id: 'm2ultra', name: 'Apple M2 Ultra', vendor: 'apple', vramMB: 76800, tier: 'ultra' },
-  { id: 'm2max', name: 'Apple M2 Max', vendor: 'apple', vramMB: 38912, tier: 'ultra' },
-  { id: 'm2pro', name: 'Apple M2 Pro', vendor: 'apple', vramMB: 19456, tier: 'high' },
-  { id: 'm2', name: 'Apple M2', vendor: 'apple', vramMB: 8192, tier: 'medium' },
-  { id: 'm1ultra', name: 'Apple M1 Ultra', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
-  { id: 'm1max', name: 'Apple M1 Max', vendor: 'apple', vramMB: 32768, tier: 'ultra' },
-  { id: 'm1pro', name: 'Apple M1 Pro', vendor: 'apple', vramMB: 16384, tier: 'high' },
-  { id: 'm1', name: 'Apple M1', vendor: 'apple', vramMB: 8192, tier: 'medium' },
+  // Apple Silicon (unified memory - values are max configurable memory)
+  // M4 Series
+  { id: 'm4ultra', name: 'Apple M4 Ultra (512GB)', vendor: 'apple', vramMB: 524288, tier: 'ultra' },
+  { id: 'm4max', name: 'Apple M4 Max (128GB)', vendor: 'apple', vramMB: 131072, tier: 'ultra' },
+  { id: 'm4pro', name: 'Apple M4 Pro (64GB)', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
+  { id: 'm4', name: 'Apple M4 (32GB)', vendor: 'apple', vramMB: 32768, tier: 'ultra' },
+  
+  // M3 Series
+  { id: 'm3ultra512', name: 'Apple M3 Ultra (512GB)', vendor: 'apple', vramMB: 524288, tier: 'ultra' },
+  { id: 'm3ultra256', name: 'Apple M3 Ultra (256GB)', vendor: 'apple', vramMB: 262144, tier: 'ultra' },
+  { id: 'm3ultra192', name: 'Apple M3 Ultra (192GB)', vendor: 'apple', vramMB: 196608, tier: 'ultra' },
+  { id: 'm3max128', name: 'Apple M3 Max (128GB)', vendor: 'apple', vramMB: 131072, tier: 'ultra' },
+  { id: 'm3max96', name: 'Apple M3 Max (96GB)', vendor: 'apple', vramMB: 98304, tier: 'ultra' },
+  { id: 'm3max64', name: 'Apple M3 Max (64GB)', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
+  { id: 'm3pro36', name: 'Apple M3 Pro (36GB)', vendor: 'apple', vramMB: 36864, tier: 'ultra' },
+  { id: 'm3pro18', name: 'Apple M3 Pro (18GB)', vendor: 'apple', vramMB: 18432, tier: 'high' },
+  { id: 'm3', name: 'Apple M3 (24GB)', vendor: 'apple', vramMB: 24576, tier: 'high' },
+  
+  // M2 Series
+  { id: 'm2ultra192', name: 'Apple M2 Ultra (192GB)', vendor: 'apple', vramMB: 196608, tier: 'ultra' },
+  { id: 'm2ultra128', name: 'Apple M2 Ultra (128GB)', vendor: 'apple', vramMB: 131072, tier: 'ultra' },
+  { id: 'm2max96', name: 'Apple M2 Max (96GB)', vendor: 'apple', vramMB: 98304, tier: 'ultra' },
+  { id: 'm2max64', name: 'Apple M2 Max (64GB)', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
+  { id: 'm2pro32', name: 'Apple M2 Pro (32GB)', vendor: 'apple', vramMB: 32768, tier: 'ultra' },
+  { id: 'm2pro16', name: 'Apple M2 Pro (16GB)', vendor: 'apple', vramMB: 16384, tier: 'high' },
+  { id: 'm2', name: 'Apple M2 (24GB)', vendor: 'apple', vramMB: 24576, tier: 'high' },
+  
+  // M1 Series
+  { id: 'm1ultra128', name: 'Apple M1 Ultra (128GB)', vendor: 'apple', vramMB: 131072, tier: 'ultra' },
+  { id: 'm1ultra64', name: 'Apple M1 Ultra (64GB)', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
+  { id: 'm1max64', name: 'Apple M1 Max (64GB)', vendor: 'apple', vramMB: 65536, tier: 'ultra' },
+  { id: 'm1max32', name: 'Apple M1 Max (32GB)', vendor: 'apple', vramMB: 32768, tier: 'ultra' },
+  { id: 'm1pro32', name: 'Apple M1 Pro (32GB)', vendor: 'apple', vramMB: 32768, tier: 'ultra' },
+  { id: 'm1pro16', name: 'Apple M1 Pro (16GB)', vendor: 'apple', vramMB: 16384, tier: 'high' },
+  { id: 'm1', name: 'Apple M1 (16GB)', vendor: 'apple', vramMB: 16384, tier: 'high' },
   
   // Intel Arc
   { id: 'arca770', name: 'Intel Arc A770', vendor: 'intel', vramMB: 16384, tier: 'high' },
