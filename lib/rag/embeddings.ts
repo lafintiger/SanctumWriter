@@ -174,3 +174,7 @@ export const EMBEDDING_MODELS = [
   { id: 'bge-m3', name: 'BGE M3', size: '568M', description: 'Multilingual support' },
 ];
 
+
+
+
+

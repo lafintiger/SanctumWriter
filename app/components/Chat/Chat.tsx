@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Loader2, CheckCircle, XCircle, Wand2, Database, Brain } from 'lucide-react';
+import { Send, Bot, User, Loader2, CheckCircle, XCircle, Wand2, Database, Brain, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useChatStore } from '@/lib/store/useChatStore';
@@ -9,9 +9,10 @@ import { useSettingsStore } from '@/lib/store/useSettingsStore';
 import { useWorkflowStore, STAGE_LABELS } from '@/lib/store/useWorkflowStore';
 import { useRAGStore } from '@/lib/store/useRAGStore';
 import { streamChat, estimateMessagesTokens, LLMOptions } from '@/lib/llm/client';
-import { getSystemPrompt, WorkflowContext } from '@/lib/llm/tools';
+import { getSystemPrompt, WorkflowContext, WebSearchConfig } from '@/lib/llm/tools';
 import { parseToolCallToOperation, executeOperation } from '@/lib/editor/operations';
 import { retrieveContext, buildMemoryContext, autoSaveSession } from '@/lib/rag';
+import { searchSearXNG, searchPerplexica, SearchResponse } from '@/lib/search/searchService';
 import { ChatMessage, LLMMessage } from '@/types';
 import { EditorView } from '@codemirror/view';
 import { v4 as uuidv4 } from 'uuid';
@@ -77,6 +78,7 @@ function MessageContent({ message }: { message: ChatMessage }) {
 export function Chat({ editorView }: ChatProps) {
   const [input, setInput] = useState('');
   const [ragStatus, setRagStatus] = useState<'idle' | 'retrieving' | 'ready'>('idle');
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'searching'>('idle');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
@@ -99,6 +101,7 @@ export function Chat({ editorView }: ChatProps) {
     contextLength,
     setContextUsed,
     serviceURLs,
+    webSearchSettings,
   } = useSettingsStore();
   
   const { getWorkflow, getProgress } = useWorkflowStore();
@@ -167,6 +170,12 @@ export function Chat({ editorView }: ChatProps) {
       };
     }
 
+    // Build web search config
+    const webSearchConfig: WebSearchConfig = {
+      enabled: webSearchSettings.enabled,
+      autoSearch: webSearchSettings.autoSearch,
+    };
+
     // Build base system prompt
     let systemPrompt = getSystemPrompt(
       currentDocument.content,
@@ -176,7 +185,8 @@ export function Chat({ editorView }: ChatProps) {
         fromLine: selection.fromLine,
         toLine: selection.toLine,
       } : undefined,
-      workflowContext
+      workflowContext,
+      webSearchConfig
     );
 
     // RAG: Retrieve relevant context from knowledge base
@@ -249,6 +259,27 @@ Use this context to inform your response when relevant. Cite sources when refere
       topK,
       repeatPenalty,
       contextLength,
+      enableWebSearch: webSearchSettings.enabled,
+    };
+
+    // Helper function to execute web search
+    const executeWebSearch = async (query: string): Promise<SearchResponse> => {
+      setSearchStatus('searching');
+      try {
+        // Use the preferred search engine
+        if (webSearchSettings.preferredEngine === 'perplexica') {
+          return await searchPerplexica(query, {
+            focusMode: 'webSearch',
+            serviceURLs: serviceURLs,
+          });
+        } else {
+          return await searchSearXNG(query, {
+            serviceURLs: serviceURLs,
+          });
+        }
+      } finally {
+        setSearchStatus('idle');
+      }
     };
 
     try {
@@ -260,7 +291,7 @@ Use this context to inform your response when relevant. Cite sources when refere
           onToken: (token) => {
             appendToMessage(assistantId, token);
           },
-          onToolCall: (toolCall) => {
+          onToolCall: async (toolCall) => {
             const toolCallId = uuidv4();
             addToolCallToMessage(assistantId, {
               id: toolCallId,
@@ -268,7 +299,55 @@ Use this context to inform your response when relevant. Cite sources when refere
               arguments: toolCall.arguments,
             });
 
-            // Execute the tool call
+            // Handle web_search tool
+            if (toolCall.name === 'web_search') {
+              const query = toolCall.arguments.query as string;
+              const reason = toolCall.arguments.reason as string;
+              
+              showToast(`Searching: ${query}`, 'info');
+              
+              try {
+                const searchResults = await executeWebSearch(query);
+                
+                // Format search results for the AI
+                let resultsText = '\n\n---\n📊 **Web Search Results**';
+                if (reason) resultsText += ` (${reason})`;
+                resultsText += `\n\n**Query:** ${query}\n\n`;
+                
+                if (searchResults.aiSummary) {
+                  resultsText += `**Summary:**\n${searchResults.aiSummary}\n\n`;
+                }
+                
+                if (searchResults.results.length > 0) {
+                  resultsText += '**Sources:**\n';
+                  searchResults.results.slice(0, 5).forEach((r, i) => {
+                    resultsText += `${i + 1}. **${r.title}**\n   ${r.snippet?.slice(0, 200) || ''}${r.snippet && r.snippet.length > 200 ? '...' : ''}\n   [${r.url}](${r.url})\n\n`;
+                  });
+                } else {
+                  resultsText += '*No results found.*\n';
+                }
+                resultsText += '---\n\n';
+                
+                // Append search results to the message
+                appendToMessage(assistantId, resultsText);
+                
+                updateToolCallResult(assistantId, toolCallId, {
+                  success: true,
+                  message: `Found ${searchResults.results.length} results`,
+                });
+                
+                showToast(`Found ${searchResults.results.length} results`, 'success');
+              } catch (error) {
+                updateToolCallResult(assistantId, toolCallId, {
+                  success: false,
+                  message: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                });
+                showToast('Web search failed', 'error');
+              }
+              return;
+            }
+
+            // Execute document editing tools
             if (editorView) {
               const operation = parseToolCallToOperation(toolCall.name, toolCall.arguments);
               const result = executeOperation(editorView, operation);
@@ -353,6 +432,7 @@ Use this context to inform your response when relevant. Cite sources when refere
     setContextUsed,
     ragSettings,
     sessionMemorySettings,
+    webSearchSettings,
     serviceURLs,
     getWorkflow,
     getProgress,
@@ -391,6 +471,17 @@ Use this context to inform your response when relevant. Cite sources when refere
           <span className="text-xs bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded flex items-center gap-1">
             <Brain className="w-3 h-3" />
             Memory
+          </span>
+        )}
+        {webSearchSettings.enabled && (
+          <span className={cn(
+            "text-xs px-2 py-0.5 rounded flex items-center gap-1",
+            searchStatus === 'searching' 
+              ? "bg-blue-500/10 text-blue-500 animate-pulse" 
+              : "bg-blue-500/10 text-blue-500"
+          )}>
+            <Globe className="w-3 h-3" />
+            {searchStatus === 'searching' ? 'Searching...' : 'Web'}
           </span>
         )}
       </div>

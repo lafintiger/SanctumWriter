@@ -217,3 +217,7 @@ export function calculateGoalProgress(goal: WritingGoal): {
   return { progress, remaining, percentComplete, sessionProgress };
 }
 
+
+
+
+

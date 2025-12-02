@@ -196,3 +196,7 @@ export function OutlinePanel({ onNavigateToLine }: OutlinePanelProps) {
   );
 }
 
+
+
+
+

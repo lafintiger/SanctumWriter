@@ -88,3 +88,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearMessages: () => set({ messages: [], currentStreamingMessage: '' }),
 }));
 
+
+
+
+

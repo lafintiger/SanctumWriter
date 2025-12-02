@@ -15,6 +15,7 @@ interface SearchState {
   // Search state
   isSearching: boolean;
   currentQuery: string;
+  lastSearchQuery: string; // The query that was used for current results
   results: SearchResult[];
   aiSummary: string | null;
   error: string | null;
@@ -73,6 +74,7 @@ export const useSearchStore = create<SearchState>()(
       // Initial state
       isSearching: false,
       currentQuery: '',
+      lastSearchQuery: '',
       results: [],
       aiSummary: null,
       error: null,
@@ -98,6 +100,7 @@ export const useSearchStore = create<SearchState>()(
         results: response.results,
         aiSummary: response.aiSummary || null,
         error: response.error || null,
+        lastSearchQuery: response.query || '', // Store the query used for these results
         isSearching: false,
       }),
       
@@ -158,6 +161,7 @@ export const useSearchStore = create<SearchState>()(
       
       clearSearch: () => set({
         currentQuery: '',
+        lastSearchQuery: '',
         results: [],
         aiSummary: null,
         error: null,
@@ -175,4 +179,8 @@ export const useSearchStore = create<SearchState>()(
     }
   )
 );
+
+
+
+
 

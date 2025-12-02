@@ -167,6 +167,7 @@ export function ResearchPanel() {
     isSearching,
     setSearching,
     currentQuery,
+    lastSearchQuery,
     setQuery,
     results,
     setResults,
@@ -273,9 +274,11 @@ export function ResearchPanel() {
   
   const handleInsertSummary = async () => {
     if (aiSummary) {
+      // Use lastSearchQuery to ensure we have the query that produced these results
+      const queryToUse = lastSearchQuery || currentQuery;
       const markdown = formatResultsAsMarkdown(
-        { query: currentQuery, results, totalResults: results.length, searchEngine: preferredEngine, aiSummary },
-        { includeAiSummary: true, maxResults: 100, includeUrls: true }
+        { query: queryToUse, results, totalResults: results.length, searchEngine: preferredEngine, aiSummary },
+        { includeAiSummary: true, maxResults: 100, includeUrls: true, includeQuery: true }
       );
       
       if (currentDocument) {
@@ -355,7 +358,7 @@ export function ResearchPanel() {
                   Start Perplexica (port 3000) or SearXNG (port 4000)
                 </p>
                 <button
-                  onClick={checkEngines}
+                  onClick={checkEnginesWithURLs}
                   className="mt-2 text-xs text-accent hover:underline flex items-center gap-1"
                 >
                   <RefreshCw className="w-3 h-3" />

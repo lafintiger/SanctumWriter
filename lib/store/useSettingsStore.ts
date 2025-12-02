@@ -221,6 +221,13 @@ export const DEFAULT_SERVICE_URLS: ServiceURLs = {
   searxng: 'http://localhost:4000',
 };
 
+// Web search settings
+export interface WebSearchSettings {
+  enabled: boolean;       // Whether AI can use web search
+  autoSearch: boolean;    // Automatically search when facts are needed
+  preferredEngine: 'searxng' | 'perplexica';
+}
+
 interface SettingsState {
   // Writing settings
   writingPreset: WritingPreset;
@@ -239,6 +246,9 @@ interface SettingsState {
   
   // Service URLs
   serviceURLs: ServiceURLs;
+  
+  // Web search settings
+  webSearchSettings: WebSearchSettings;
   
   // Workspace
   workspacePath: string;
@@ -265,6 +275,11 @@ interface SettingsState {
   setContextUsed: (used: number) => void;
   toggleSettings: () => void;
   setShowSettings: (show: boolean) => void;
+  
+  // Web search settings
+  setWebSearchEnabled: (enabled: boolean) => void;
+  setWebSearchAutoSearch: (auto: boolean) => void;
+  setWebSearchPreferredEngine: (engine: 'searxng' | 'perplexica') => void;
   
   // Auto-configuration
   autoConfigureForModel: (modelInfo: ModelInfo) => void;
@@ -334,6 +349,12 @@ export const useSettingsStore = create<SettingsState>()(
       
       serviceURLs: { ...DEFAULT_SERVICE_URLS },
       
+      webSearchSettings: {
+        enabled: true,  // Enable by default since user requested this feature
+        autoSearch: true,
+        preferredEngine: 'searxng',
+      },
+      
       workspacePath: './documents',
       
       contextUsed: 0,
@@ -367,6 +388,17 @@ export const useSettingsStore = create<SettingsState>()(
       setContextUsed: (contextUsed) => set({ contextUsed }),
       toggleSettings: () => set((state) => ({ showSettings: !state.showSettings })),
       setShowSettings: (showSettings) => set({ showSettings }),
+      
+      // Web search settings
+      setWebSearchEnabled: (enabled) => set((state) => ({
+        webSearchSettings: { ...state.webSearchSettings, enabled },
+      })),
+      setWebSearchAutoSearch: (autoSearch) => set((state) => ({
+        webSearchSettings: { ...state.webSearchSettings, autoSearch },
+      })),
+      setWebSearchPreferredEngine: (preferredEngine) => set((state) => ({
+        webSearchSettings: { ...state.webSearchSettings, preferredEngine },
+      })),
       
       autoConfigureForModel: (modelInfo) => {
         const { hardwareInfo } = get();
@@ -486,6 +518,7 @@ export const useSettingsStore = create<SettingsState>()(
         contextLength: state.contextLength,
         hardwareInfo: state.hardwareInfo, // Persist hardware selection
         serviceURLs: state.serviceURLs, // Persist service URLs
+        webSearchSettings: state.webSearchSettings, // Persist web search settings
         workspacePath: state.workspacePath, // Persist workspace path
       }),
     }

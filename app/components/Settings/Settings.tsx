@@ -22,9 +22,10 @@ import {
   Folder,
   ChevronUp,
   FileText,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore, WRITING_PRESETS, WritingPreset, GPU_PRESETS, getOptimalSettingsForTier, DEFAULT_SERVICE_URLS, ServiceURLs } from '@/lib/store/useSettingsStore';
+import { useSettingsStore, WRITING_PRESETS, WritingPreset, GPU_PRESETS, getOptimalSettingsForTier, DEFAULT_SERVICE_URLS, ServiceURLs, WebSearchSettings } from '@/lib/store/useSettingsStore';
 import { useAppStore } from '@/lib/store/useAppStore';
 import { useCouncilStore } from '@/lib/store/useCouncilStore';
 import { Reviewer, DEFAULT_REVIEWERS, ReviewerRole } from '@/types/council';
@@ -60,6 +61,10 @@ export function Settings() {
     optimizeForWriting,
     workspacePath,
     setWorkspacePath,
+    webSearchSettings,
+    setWebSearchEnabled,
+    setWebSearchAutoSearch,
+    setWebSearchPreferredEngine,
   } = useSettingsStore();
 
   const { provider, model } = useAppStore();
@@ -399,6 +404,10 @@ export function Settings() {
               serviceURLs={serviceURLs}
               onSetServiceURL={setServiceURL}
               onResetServiceURLs={resetServiceURLs}
+              webSearchSettings={webSearchSettings}
+              onSetWebSearchEnabled={setWebSearchEnabled}
+              onSetWebSearchAutoSearch={setWebSearchAutoSearch}
+              onSetWebSearchPreferredEngine={setWebSearchPreferredEngine}
             />
           )}
         </div>
@@ -1162,9 +1171,21 @@ interface ServicesTabProps {
   serviceURLs: ServiceURLs;
   onSetServiceURL: (service: keyof ServiceURLs, url: string) => void;
   onResetServiceURLs: () => void;
+  webSearchSettings: WebSearchSettings;
+  onSetWebSearchEnabled: (enabled: boolean) => void;
+  onSetWebSearchAutoSearch: (auto: boolean) => void;
+  onSetWebSearchPreferredEngine: (engine: 'searxng' | 'perplexica') => void;
 }
 
-function ServicesTab({ serviceURLs, onSetServiceURL, onResetServiceURLs }: ServicesTabProps) {
+function ServicesTab({ 
+  serviceURLs, 
+  onSetServiceURL, 
+  onResetServiceURLs,
+  webSearchSettings,
+  onSetWebSearchEnabled,
+  onSetWebSearchAutoSearch,
+  onSetWebSearchPreferredEngine,
+}: ServicesTabProps) {
   const [testResults, setTestResults] = useState<Record<string, 'testing' | 'success' | 'error' | null>>({});
   
   const services: { key: keyof ServiceURLs; name: string; description: string; defaultPort: number; healthEndpoint: string }[] = [
@@ -1359,6 +1380,108 @@ function ServicesTab({ serviceURLs, onSetServiceURL, onResetServiceURLs }: Servi
             >
               Apply
             </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* AI Web Search Settings */}
+      <div className="bg-editor-bg rounded-lg p-4 border border-blue-500/30">
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="w-5 h-5 text-blue-500" />
+          <h4 className="font-medium text-text-primary">AI Web Search</h4>
+        </div>
+        <p className="text-sm text-text-secondary mb-4">
+          Allow the AI assistant to search the web for facts, statistics, and current information while helping you write.
+        </p>
+        
+        <div className="space-y-4">
+          {/* Enable Web Search */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-text-primary">Enable Web Search</div>
+              <div className="text-xs text-text-secondary">AI can search the web to find information</div>
+            </div>
+            <button
+              onClick={() => onSetWebSearchEnabled(!webSearchSettings.enabled)}
+              className={cn(
+                'w-11 h-6 rounded-full transition-colors relative',
+                webSearchSettings.enabled ? 'bg-blue-500' : 'bg-border'
+              )}
+            >
+              <div
+                className={cn(
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                  webSearchSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+          
+          {/* Auto Search */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-text-primary">Auto Search</div>
+              <div className="text-xs text-text-secondary">Automatically search when facts are needed</div>
+            </div>
+            <button
+              onClick={() => onSetWebSearchAutoSearch(!webSearchSettings.autoSearch)}
+              disabled={!webSearchSettings.enabled}
+              className={cn(
+                'w-11 h-6 rounded-full transition-colors relative',
+                !webSearchSettings.enabled && 'opacity-50',
+                webSearchSettings.autoSearch && webSearchSettings.enabled ? 'bg-blue-500' : 'bg-border'
+              )}
+            >
+              <div
+                className={cn(
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                  webSearchSettings.autoSearch && webSearchSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+          
+          {/* Preferred Engine */}
+          <div>
+            <div className="text-sm text-text-primary mb-2">Preferred Search Engine</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onSetWebSearchPreferredEngine('searxng')}
+                disabled={!webSearchSettings.enabled}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-lg border text-sm transition-all',
+                  !webSearchSettings.enabled && 'opacity-50',
+                  webSearchSettings.preferredEngine === 'searxng' && webSearchSettings.enabled
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-500'
+                    : 'border-border text-text-secondary hover:border-text-secondary'
+                )}
+              >
+                <div className="font-medium">SearXNG</div>
+                <div className="text-xs mt-0.5 opacity-70">Privacy-focused, fast</div>
+              </button>
+              <button
+                onClick={() => onSetWebSearchPreferredEngine('perplexica')}
+                disabled={!webSearchSettings.enabled}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-lg border text-sm transition-all',
+                  !webSearchSettings.enabled && 'opacity-50',
+                  webSearchSettings.preferredEngine === 'perplexica' && webSearchSettings.enabled
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-500'
+                    : 'border-border text-text-secondary hover:border-text-secondary'
+                )}
+              >
+                <div className="font-medium">Perplexica</div>
+                <div className="text-xs mt-0.5 opacity-70">AI-powered summaries</div>
+              </button>
+            </div>
+          </div>
+          
+          {/* Info box */}
+          <div className="flex items-start gap-2 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg text-xs text-text-secondary">
+            <Info className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
+            <div>
+              When enabled, the AI can search the web during conversations to find up-to-date information, verify facts, and provide better assistance. You'll see a <span className="text-blue-500">Web</span> indicator in the chat when this is active.
+            </div>
           </div>
         </div>
       </div>

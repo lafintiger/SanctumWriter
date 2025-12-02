@@ -203,3 +203,7 @@ export function getOptimalChunkSize(contextLength: number): number {
   return Math.min(Math.floor(contextLength * 0.1 * 4), 2000); // Convert tokens to chars
 }
 
+
+
+
+

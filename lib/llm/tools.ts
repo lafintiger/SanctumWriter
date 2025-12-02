@@ -1,5 +1,25 @@
 import { ToolDefinition } from '@/types';
 
+// Web search tool - allows AI to search the web for information
+export const webSearchTool: ToolDefinition = {
+  name: 'web_search',
+  description: 'Search the web for current information, facts, statistics, or research to help with writing. Use this when you need up-to-date information, need to verify facts, or when the user asks about current events or topics you\'re unsure about.',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'The search query to find relevant information',
+      },
+      reason: {
+        type: 'string',
+        description: 'Brief explanation of why this search is needed',
+      },
+    },
+    required: ['query'],
+  },
+};
+
 export const documentTools: ToolDefinition[] = [
   {
     name: 'replace_selection',
@@ -134,6 +154,14 @@ export function formatToolsForLMStudio(tools: ToolDefinition[]) {
   }));
 }
 
+// All tools including web search
+export const allTools: ToolDefinition[] = [...documentTools, webSearchTool];
+
+// Get tools based on whether web search is enabled
+export function getAvailableTools(enableWebSearch: boolean = false): ToolDefinition[] {
+  return enableWebSearch ? allTools : documentTools;
+}
+
 export interface WorkflowContext {
   currentStage: string;
   stageLabel: string;
@@ -142,11 +170,17 @@ export interface WorkflowContext {
   notes: string;
 }
 
+export interface WebSearchConfig {
+  enabled: boolean;
+  autoSearch: boolean; // Automatically search when facts are needed
+}
+
 export function getSystemPrompt(
   documentContent: string, 
   documentPath: string, 
   selection?: { text: string; fromLine: number; toLine: number },
-  workflowContext?: WorkflowContext
+  workflowContext?: WorkflowContext,
+  webSearchConfig?: WebSearchConfig
 ): string {
   let prompt = `You are an AI writing assistant helping to edit and improve documents. You have direct access to modify the document through tool calls.
 
@@ -163,7 +197,32 @@ AVAILABLE ACTIONS:
 - edit_lines: Replace specific lines by number
 - append_to_document: Add content at the end
 - search_replace: Find and replace throughout document
-- insert_heading: Add a new heading
+- insert_heading: Add a new heading`;
+
+  // Add web search instructions if enabled
+  if (webSearchConfig?.enabled) {
+    prompt += `
+- web_search: Search the web for current information (USE THIS TO FIND FACTS!)
+
+WEB SEARCH GUIDANCE:
+You have the ability to search the web for information. USE IT when:
+1. The user asks about current events, statistics, or recent developments
+2. You need to verify facts, dates, or claims
+3. You need specific information about people, places, organizations
+4. The user explicitly asks you to research or look something up
+5. You're writing content that requires accurate, up-to-date information
+6. You're unsure about a factual claim
+
+When you search:
+- Use clear, specific search queries
+- After receiving results, incorporate the information naturally into your response
+- Cite sources when providing factual information
+- You can search multiple times if needed for different aspects
+
+DO NOT be hesitant to search - it's better to look up information than to guess or provide outdated facts!`;
+  }
+
+  prompt += `
 
 GUIDELINES:
 1. When the user asks to modify text, use the appropriate tool to make the change directly

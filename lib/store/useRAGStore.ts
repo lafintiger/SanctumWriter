@@ -198,3 +198,7 @@ export const useRAGEnabled = () => useRAGStore((state) => state.ragSettings.enab
 export const useSessionMemoryEnabled = () => useRAGStore((state) => state.sessionMemorySettings.enabled);
 export const useEmbeddingModel = () => useRAGStore((state) => state.ragSettings.embeddingModel);
 
+
+
+
+

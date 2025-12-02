@@ -1,5 +1,5 @@
 import { LLMMessage, LLMProviderType, StreamCallbacks } from '@/types';
-import { documentTools, formatToolsForOllama, formatToolsForLMStudio } from './tools';
+import { documentTools, formatToolsForOllama, formatToolsForLMStudio, getAvailableTools } from './tools';
 
 const OLLAMA_URL = 'http://localhost:11434';
 const LMSTUDIO_URL = 'http://localhost:1234';
@@ -10,6 +10,7 @@ export interface LLMOptions {
   topK?: number;
   repeatPenalty?: number;
   contextLength?: number;
+  enableWebSearch?: boolean;
 }
 
 // Rough token estimation (4 chars per token on average)
@@ -161,7 +162,9 @@ async function tryOllamaRequest(
   };
 
   if (useTools) {
-    body.tools = formatToolsForOllama(documentTools);
+    // Include web search tool if enabled
+    const tools = getAvailableTools(options.enableWebSearch ?? false);
+    body.tools = formatToolsForOllama(tools);
   }
 
   return fetch(`${OLLAMA_URL}/api/chat`, {
@@ -191,7 +194,8 @@ async function streamLMStudioChat(
   // LM Studio may not support tools, so we'll try without them by default
   // and only add them if explicitly requested and the model supports it
   if (useTools) {
-    body.tools = formatToolsForLMStudio(documentTools);
+    const tools = getAvailableTools(options.enableWebSearch ?? false);
+    body.tools = formatToolsForLMStudio(tools);
     body.tool_choice = 'auto';
   }
 
