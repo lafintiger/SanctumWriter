@@ -236,6 +236,37 @@ Benefits:
 | **Context Templates** | Pre-built context for specific domains | P1 | 🔲 |
 | **Memory Management** | What AI remembers about your style | P1 | 🔲 |
 
+---
+
+### Phase 10: Image Studio 🎨 ✅
+**Goal**: Generate images for writing using local Stable Diffusion
+
+| Feature | Description | Priority | Status |
+|---------|-------------|----------|--------|
+| **ComfyUI Integration** | Connect to local ComfyUI instance | P0 | ✅ |
+| **Prompt Input** | Natural language image descriptions | P0 | ✅ |
+| **From Selection** | Extract prompts from document text | P0 | ✅ |
+| **AI Enhance** | LLM-powered prompt expansion | P0 | ✅ |
+| **Aspect Ratio Presets** | Square, Blog Header, Portrait, Book Cover, Photo, Cinematic | P0 | ✅ |
+| **Generation Progress** | Real-time status and progress indicator | P1 | ✅ |
+| **Cancel Generation** | Interrupt running generations | P1 | ✅ |
+| **Save to Workspace** | Save images to workspace folder | P0 | ✅ |
+| **Generation History** | Persistent history of generated images | P1 | ✅ |
+| **Thumbnail Gallery** | Visual gallery of past generations | P1 | ✅ |
+| **Full-Size Preview** | Modal preview with metadata | P1 | ✅ |
+| **Insert to Document** | Add image markdown to document | P0 | ✅ |
+| **Copy Path** | Copy image path to clipboard | P1 | ✅ |
+| **Connection Status** | Show ComfyUI connection state | P1 | ✅ |
+| **Custom Workflow** | Support for custom ComfyUI workflows | P2 | 🔲 |
+| **LoRA Support** | Select LoRA models for generation | P2 | 🔲 |
+| **Image-to-Image** | Use existing images as input | P2 | 🔲 |
+
+**Technical Notes**:
+- Uses ComfyUI API for image generation
+- Default workflow: Z-Image Turbo (GGUF quantized)
+- Images saved to workspace `./images/generated/`
+- AI Enhance uses active Ollama model for prompt expansion
+
 **Example Personas**:
 ```yaml
 Ernest Hemingway:
@@ -288,6 +319,7 @@ Phase 6: Writing Enhancement     ░░░░░░░░░░  [PLANNED]
 Phase 7: Export & Publishing     ░░░░░░░░░░  [PLANNED]
 Phase 8: Organization            ░░░░░░░░░░  [PLANNED]
 Phase 9: AI Customization        ░░░░░░░░░░  [PLANNED]
+Phase 10: Image Studio           ██████████  [COMPLETE ✅]
 ```
 
 ---
@@ -355,5 +387,5 @@ To contribute:
 
 ---
 
-*Last Updated: November 2024*
-*Version: 0.1.0*
+*Last Updated: December 2025*
+*Version: 1.4.0*

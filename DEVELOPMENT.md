@@ -1,7 +1,7 @@
 # SanctumWriter - Development Documentation
 
-> **Last Updated:** December 7, 2025  
-> **Version:** 1.3.0  
+> **Last Updated:** December 10, 2025  
+> **Version:** 1.4.0  
 > **Repository:** https://github.com/lafintiger/SanctumWriter
 
 ---
@@ -118,6 +118,7 @@ The app detects and adapts to your hardware:
 | **LM Studio** | 1234 | Alternative LLM server |
 | **Perplexica** | 3000 | AI-powered search (optional) |
 | **SearXNG** | 4000 | Privacy-focused search (optional) |
+| **ComfyUI** | 8188 | Image generation (optional) |
 
 ---
 
@@ -139,8 +140,12 @@ SanctumWriter/
 │   │   │   └── route.ts         # Proxy for Perplexica/SearXNG (CORS bypass)
 │   │   ├── workspace/           # Workspace management
 │   │   │   └── route.ts         # Get/set workspace folder path
-│   │   └── convert/             # Document conversion
-│   │       └── route.ts         # Docling PDF/DOCX to Markdown
+│   │   ├── convert/             # Document conversion
+│   │   │   └── route.ts         # Docling PDF/DOCX to Markdown
+│   │   └── image/               # Image generation (ComfyUI)
+│   │       ├── route.ts         # Queue generation, save images
+│   │       ├── status/route.ts  # Check generation status
+│   │       └── view/route.ts    # Serve images from workspace
 │   ├── components/              # React components
 │   │   ├── Chat/                # AI chat interface
 │   │   │   └── Chat.tsx         # Main chat component with streaming
@@ -159,6 +164,8 @@ SanctumWriter/
 │   │   │   └── FileTree.tsx     # Sidebar file list
 │   │   ├── Header/              # App header
 │   │   │   └── Header.tsx       # Model selector, settings, toggles
+│   │   ├── ImageStudio/         # Image generation panel
+│   │   │   └── ImageStudioPanel.tsx # ComfyUI integration UI
 │   │   ├── KnowledgeBase/       # RAG knowledge base
 │   │   │   └── KnowledgeBasePanel.tsx # Index documents, manage vectors
 │   │   ├── Outline/             # Document outline
@@ -194,6 +201,8 @@ SanctumWriter/
 │   │   └── reviewAnnotations.ts # Review comment annotations
 │   ├── hardware/                # Hardware detection
 │   │   └── detect.ts            # GPU/VRAM detection via WebGL
+│   ├── image/                   # Image generation
+│   │   └── comfyClient.ts       # ComfyUI API client
 │   ├── llm/                     # LLM utilities
 │   │   ├── client.ts            # Ollama/LM Studio API client
 │   │   ├── modelManager.ts      # Model loading/unloading for VRAM management
@@ -213,6 +222,7 @@ SanctumWriter/
 │   │   ├── useChatStore.ts      # Chat messages and state
 │   │   ├── useCitationStore.ts  # Citations and bibliography
 │   │   ├── useCouncilStore.ts   # Council of Writers state
+│   │   ├── useImageStore.ts     # Image Studio state and settings
 │   │   ├── useOutlineStore.ts   # Document outline state
 │   │   ├── useProjectStore.ts   # Project management state
 │   │   ├── usePromptLibraryStore.ts # Prompt library state
@@ -806,6 +816,23 @@ exportToMd(content, filename)    // Raw markdown
 - [x] GPU support configuration
 - [x] Health checks
 
+### Image Studio (ComfyUI) ✅
+- [x] ComfyUI API integration
+- [x] Z-Image Turbo workflow support
+- [x] Natural language prompt input
+- [x] "From Selection" prompt extraction
+- [x] AI Enhance toggle (LLM prompt expansion)
+- [x] 6 aspect ratio presets (Square, Blog Header, Portrait, Book Cover, Photo, Cinematic)
+- [x] Real-time generation progress
+- [x] Cancel generation support
+- [x] Save images to workspace folder
+- [x] Persistent generation history
+- [x] Thumbnail gallery with preview
+- [x] Full-size preview modal
+- [x] Insert image markdown to document
+- [x] Copy path to clipboard
+- [x] ComfyUI connection status indicator
+
 ### Core Editor Features ✅
 - [x] CodeMirror 6 markdown editor
 - [x] Syntax highlighting
@@ -837,6 +864,7 @@ exportToMd(content, filename)    // Raw markdown
 14. **Session Memory** - AI remembers conversations
 15. **Citations** - Bibliography management with multiple styles
 16. **Docker Deployment** - Containerized for easy deployment
+17. **Image Studio** - ComfyUI integration with Z-Image Turbo
 
 ### What Needs Attention
 1. **Perplexica Integration** - Works but depends on Perplexica's configuration
@@ -1107,6 +1135,7 @@ deploy:
 | **Session Memory** | `app/components/SessionMemory/SessionMemoryPanel.tsx`, `lib/rag/sessionMemory.ts` |
 | **Citations** | `app/components/Citations/CitationPanel.tsx`, `lib/citations/*`, `lib/store/useCitationStore.ts` |
 | **Projects** | `app/components/Project/ProjectView.tsx`, `lib/store/useProjectStore.ts` |
+| **Image Studio** | `app/components/ImageStudio/ImageStudioPanel.tsx`, `lib/image/comfyClient.ts`, `lib/store/useImageStore.ts` |
 | **Docker** | `Dockerfile`, `docker-compose.yml`, `.dockerignore` |
 
 ---
@@ -1164,5 +1193,5 @@ This is a personal project. Feel free to fork and modify for your own use.
 
 ---
 
-*Last updated: December 7, 2025*  
+*Last updated: December 10, 2025*  
 *This document should be updated whenever significant changes are made to the architecture or features.*

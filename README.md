@@ -60,6 +60,7 @@ A local-first markdown editor that uses your own LLMs (Ollama/LM Studio) as a co
 - 📤 **Export** — PDF, DOCX, HTML, TXT formats
 - 🧠 **RAG Knowledge Base** — Use your documents as AI context
 - 💭 **Session Memory** — AI remembers your writing preferences
+- 🎨 **Image Studio** — Generate images via local ComfyUI (Stable Diffusion)
 
 ---
 
@@ -90,6 +91,7 @@ SanctumWriter integrates with several local services. Here's what you need:
 | 2 | **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** | Container runtime for search services | [docker.com](https://www.docker.com/products/docker-desktop/) | — |
 | 3 | **[SearXNG](https://github.com/searxng/searxng)** | Privacy-focused web search | [GitHub](https://github.com/searxng/searxng) | Docker |
 | 4 | **[Perplexica](https://github.com/ItzCrazyKns/Perplexica)** | AI-powered search with summaries | [GitHub](https://github.com/ItzCrazyKns/Perplexica) | Docker + Ollama |
+| 5 | **[ComfyUI](https://github.com/comfyanonymous/ComfyUI)** | Local image generation (Stable Diffusion) | [GitHub](https://github.com/comfyanonymous/ComfyUI) | GPU recommended |
 
 #### Installation Order
 
@@ -256,6 +258,7 @@ Configure your local services in the Settings modal. All URLs are customizable i
 | LM Studio | `http://localhost:1234` | Alternative local LLM | [lmstudio.ai](https://lmstudio.ai) |
 | SearXNG | `http://localhost:4000` | Privacy-focused search | [GitHub](https://github.com/searxng/searxng) |
 | Perplexica | `http://localhost:3000` | AI-powered search | [GitHub](https://github.com/ItzCrazyKns/Perplexica) |
+| ComfyUI | `http://localhost:8188` | Image generation | [GitHub](https://github.com/comfyanonymous/ComfyUI) |
 
 > 💡 **Tip**: If running services in Docker, use `localhost:PORT` — SanctumWriter runs on your host machine and can reach Docker containers via localhost.
 
