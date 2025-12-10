@@ -116,7 +116,7 @@ export async function PATCH(
   { params }: { params: { path: string[] } }
 ) {
   try {
-    const { newName, workspace } = await request.json();
+    const { newName, destinationPath, workspace } = await request.json();
     const oldPath = getFullPath(params.path, workspace);
     
     if (!existsSync(oldPath)) {
@@ -126,29 +126,67 @@ export async function PATCH(
       );
     }
 
-    const newPath = join(dirname(oldPath), newName);
+    let newPath: string;
+    let newRelativePath: string[];
+
+    // If destinationPath is provided, this is a move operation
+    if (destinationPath !== undefined) {
+      const { mkdir } = await import('fs/promises');
+      const fileName = basename(oldPath);
+      
+      // destinationPath is relative to workspace - empty string means root
+      const destDir = destinationPath 
+        ? join(getWorkspacePath(workspace), destinationPath)
+        : getWorkspacePath(workspace);
+      
+      // Ensure destination directory exists
+      await mkdir(destDir, { recursive: true });
+      
+      newPath = join(destDir, fileName);
+      newRelativePath = destinationPath 
+        ? [...destinationPath.split('/').filter(Boolean), fileName]
+        : [fileName];
+      
+      // Check if source and destination are the same
+      if (oldPath === newPath) {
+        return NextResponse.json({
+          success: true,
+          oldPath: params.path.join('/'),
+          newPath: newRelativePath.join('/'),
+          message: 'File is already in this location'
+        });
+      }
+    } else if (newName) {
+      // This is a rename operation (existing behavior)
+      newPath = join(dirname(oldPath), newName);
+      const pathParts = [...params.path];
+      pathParts[pathParts.length - 1] = newName;
+      newRelativePath = pathParts;
+    } else {
+      return NextResponse.json(
+        { error: 'Must provide either newName or destinationPath' },
+        { status: 400 }
+      );
+    }
     
     if (existsSync(newPath)) {
       return NextResponse.json(
-        { error: 'A file with that name already exists' },
+        { error: 'A file with that name already exists in the destination' },
         { status: 409 }
       );
     }
 
     await rename(oldPath, newPath);
     
-    const pathParts = [...params.path];
-    pathParts[pathParts.length - 1] = newName;
-    
     return NextResponse.json({
       success: true,
       oldPath: params.path.join('/'),
-      newPath: pathParts.join('/'),
+      newPath: newRelativePath.join('/'),
     });
   } catch (error) {
-    console.error('Error renaming file:', error);
+    console.error('Error moving/renaming file:', error);
     return NextResponse.json(
-      { error: 'Failed to rename file' },
+      { error: 'Failed to move/rename file' },
       { status: 500 }
     );
   }

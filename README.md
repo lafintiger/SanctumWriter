@@ -152,6 +152,8 @@ cd Perplexica
 
 ### Installing SanctumWriter
 
+#### Option A: Standard Installation (npm)
+
 ```bash
 # Clone the repo
 git clone https://github.com/lafintiger/SanctumWriter.git
@@ -165,6 +167,54 @@ npm run dev
 ```
 
 Open **http://localhost:3125** in your browser.
+
+#### Option B: Docker Installation 🐳
+
+**Quick Start (uses Ollama on your host machine):**
+```bash
+# Clone the repo
+git clone https://github.com/lafintiger/SanctumWriter.git
+cd SanctumWriter
+
+# Build and run
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+**With Ollama in Docker (no local Ollama needed):**
+```bash
+# Start app + Ollama container
+docker-compose --profile ollama up -d
+
+# Pull a model into the container
+docker exec sanctum-ollama ollama pull qwen3:latest
+```
+
+**Development with hot-reloading:**
+```bash
+docker-compose -f docker-compose.dev.yml up
+```
+
+| Docker Command | Description |
+|----------------|-------------|
+| `docker-compose up -d` | Start app (connects to host Ollama) |
+| `docker-compose --profile ollama up -d` | Start app + Ollama container |
+| `docker-compose down` | Stop all services |
+| `docker-compose logs -f` | View live logs |
+| `docker-compose build --no-cache` | Rebuild after code changes |
+
+**Environment Variables:**
+```bash
+# Create .env file for custom settings
+OLLAMA_URL=http://host.docker.internal:11434
+LMSTUDIO_URL=http://host.docker.internal:1234
+DEFAULT_PROVIDER=ollama
+DEFAULT_MODEL=llama3
+```
+
+> 💡 **Tip**: Your documents are persisted in `./documents` folder and LanceDB data in a Docker volume.
 
 ---
 

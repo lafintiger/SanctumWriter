@@ -137,28 +137,69 @@ html, body {
 
 /* Resize handle */
 .resize-handle {
-  position: absolute;
-  background: transparent;
-  transition: background-color 0.2s ease;
-  z-index: 10;
+  flex-shrink: 0;
+  background: var(--border);
+  transition: background-color 0.15s ease;
+  z-index: 20;
 }
 
-.resize-handle:hover {
+.resize-handle:hover,
+.resize-handle.active {
   background: var(--accent);
 }
 
 .resize-handle-vertical {
   width: 4px;
   cursor: col-resize;
+  position: relative;
+}
+
+/* Larger hit area for easier grabbing */
+.resize-handle-vertical::before {
+  content: '';
+  position: absolute;
   top: 0;
   bottom: 0;
+  left: -4px;
+  right: -4px;
+  cursor: col-resize;
+}
+
+/* Grip dots indicator */
+.resize-handle-vertical::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 40px;
+  background-image: radial-gradient(circle, var(--text-secondary) 1px, transparent 1px);
+  background-size: 4px 8px;
+  background-position: center;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.resize-handle-vertical:hover::after,
+.resize-handle-vertical.active::after {
+  opacity: 0.8;
 }
 
 .resize-handle-horizontal {
   height: 4px;
   cursor: row-resize;
+  position: relative;
+}
+
+.resize-handle-horizontal::before {
+  content: '';
+  position: absolute;
   left: 0;
   right: 0;
+  top: -4px;
+  bottom: -4px;
+  cursor: row-resize;
 }
 
 /* Button styles */
@@ -228,6 +269,15 @@ html, body {
 .toast-success { @apply bg-green-600 text-white; }
 .toast-error { @apply bg-red-600 text-white; }
 .toast-info { @apply bg-accent text-white; }
+
+
+
+
+
+
+
+
+
 
 
 

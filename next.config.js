@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Enable standalone output for Docker
+  output: 'standalone',
   // Allow connections to local LLM servers
   async headers() {
     return [
@@ -17,6 +19,13 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+
+
+
+
+
+
 
 
 

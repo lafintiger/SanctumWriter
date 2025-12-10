@@ -221,3 +221,12 @@ export function calculateGoalProgress(goal: WritingGoal): {
 
 
 
+
+
+
+
+
+
+
+
+

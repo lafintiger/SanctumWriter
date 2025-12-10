@@ -89,45 +89,58 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { name, parentPath, workspace } = await request.json();
+    const { name, parentPath, workspace, type = 'file' } = await request.json();
     
     if (!name) {
       return NextResponse.json(
-        { error: 'File name is required' },
+        { error: 'Name is required' },
         { status: 400 }
       );
     }
 
     const workspacePath = getWorkspacePath(workspace);
-    const filePath = parentPath 
+    const targetPath = parentPath 
       ? join(workspacePath, parentPath, name)
       : join(workspacePath, name);
 
-    // Check if file already exists
-    if (existsSync(filePath)) {
+    // Check if already exists
+    if (existsSync(targetPath)) {
       return NextResponse.json(
-        { error: 'File already exists' },
+        { error: `${type === 'folder' ? 'Folder' : 'File'} already exists` },
         { status: 409 }
       );
     }
 
-    // Create the file with default content
-    const { writeFile } = await import('fs/promises');
-    const defaultContent = `# ${name.replace(/\.(md|markdown|mdx)$/i, '')}\n\nStart writing here...\n`;
-    await writeFile(filePath, defaultContent, 'utf-8');
+    const relativePath = relative(workspacePath, targetPath).replace(/\\/g, '/');
 
-    const relativePath = relative(workspacePath, filePath).replace(/\\/g, '/');
-    
-    return NextResponse.json({
-      success: true,
-      path: relativePath,
-      name,
-      content: defaultContent,
-    });
+    if (type === 'folder') {
+      // Create folder
+      await mkdir(targetPath, { recursive: true });
+      
+      return NextResponse.json({
+        success: true,
+        path: relativePath,
+        name,
+        type: 'folder',
+      });
+    } else {
+      // Create file with default content
+      const { writeFile } = await import('fs/promises');
+      const defaultContent = `# ${name.replace(/\.(md|markdown|mdx)$/i, '')}\n\nStart writing here...\n`;
+      await writeFile(targetPath, defaultContent, 'utf-8');
+      
+      return NextResponse.json({
+        success: true,
+        path: relativePath,
+        name,
+        content: defaultContent,
+        type: 'file',
+      });
+    }
   } catch (error) {
-    console.error('Error creating file:', error);
+    console.error('Error creating:', error);
     return NextResponse.json(
-      { error: 'Failed to create file' },
+      { error: 'Failed to create' },
       { status: 500 }
     );
   }

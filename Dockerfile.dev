@@ -1,0 +1,31 @@
+# SanctumWriter Development Dockerfile
+# For hot-reloading during development
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install Python for document conversion
+RUN apk add --no-cache python3 py3-pip libc6-compat
+
+# Copy package files and install dependencies
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Copy Python requirements and install
+COPY requirements.txt ./
+RUN python3 -m venv /app/venv && \
+    /app/venv/bin/pip install --no-cache-dir -r requirements.txt || true
+
+# Create documents directory
+RUN mkdir -p /app/documents
+
+EXPOSE 3125
+
+ENV PORT 3125
+ENV HOSTNAME "0.0.0.0"
+
+CMD ["npm", "run", "dev"]
+
+
+

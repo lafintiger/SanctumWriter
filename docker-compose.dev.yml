@@ -1,0 +1,33 @@
+# SanctumWriter Docker Compose - Development
+# Usage: docker-compose -f docker-compose.dev.yml up
+#
+# This mounts the source code for hot-reloading during development
+
+services:
+  sanctum-writer-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sanctum-writer-dev
+    ports:
+      - "3125:3125"
+    volumes:
+      # Mount source code for hot-reloading
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      # Documents folder
+      - ./documents:/app/documents
+    environment:
+      - NODE_ENV=development
+      - WORKSPACE_PATH=/app/documents
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - LMSTUDIO_URL=http://host.docker.internal:1234
+      - DEFAULT_PROVIDER=ollama
+      - DEFAULT_MODEL=llama3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: npm run dev
+
+
+

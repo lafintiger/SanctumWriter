@@ -168,13 +168,16 @@ export default function Home() {
         {sidebarWidth > 0 && !focusMode && (
           <>
             <div
-              className="flex-shrink-0 border-r border-border"
+              className="flex-shrink-0"
               style={{ width: sidebarWidth }}
             >
               <FileTree />
             </div>
             <div
-              className="resize-handle resize-handle-vertical right-0"
+              className={cn(
+                "resize-handle resize-handle-vertical",
+                isResizingSidebar && "active"
+              )}
               onMouseDown={handleSidebarMouseDown}
             />
           </>
@@ -264,11 +267,14 @@ export default function Home() {
         {showChat && !focusMode && (
           <>
             <div
-              className="resize-handle resize-handle-vertical left-0"
+              className={cn(
+                "resize-handle resize-handle-vertical",
+                isResizingChat && "active"
+              )}
               onMouseDown={handleChatMouseDown}
             />
             <div
-              className="flex-shrink-0 border-l border-border"
+              className="flex-shrink-0"
               style={{ width: chatPanelWidth }}
             >
               <Chat editorView={editorView} />

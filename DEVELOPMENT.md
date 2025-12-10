@@ -1,8 +1,28 @@
 # SanctumWriter - Development Documentation
 
-> **Last Updated:** December 1, 2025  
-> **Version:** 1.2.0  
+> **Last Updated:** December 7, 2025  
+> **Version:** 1.3.0  
 > **Repository:** https://github.com/lafintiger/SanctumWriter
+
+---
+
+## 🤖 Agent Handoff Guide
+
+**For AI agents picking up development**: This document explains everything you need to continue development on SanctumWriter. Read this thoroughly before making changes.
+
+### Quick Context
+- **What it is**: Local-first AI writing app using Ollama/LM Studio
+- **Stack**: Next.js 14 + React + TypeScript + Tailwind + Zustand + CodeMirror 6 + LanceDB
+- **Key files**: `app/page.tsx` (main), `lib/store/` (state), `lib/llm/` (AI), `lib/rag/` (knowledge base)
+- **Port**: 3125
+
+### Critical Patterns
+1. **State**: All state in Zustand stores (`lib/store/use*Store.ts`), persisted to localStorage
+2. **AI Tools**: AI edits documents via JSON tool calls, not copy/paste (see `lib/llm/tools.ts`)
+3. **API Routes**: All backend in `app/api/` - file ops, LLM proxy, conversions
+4. **Styling**: Tailwind CSS, dark theme, CSS variables in `globals.css`
+
+---
 
 ## Table of Contents
 
@@ -11,12 +31,15 @@
 3. [Technology Stack](#technology-stack)
 4. [Project Structure](#project-structure)
 5. [Architecture Deep Dive](#architecture-deep-dive)
-6. [Features Implemented](#features-implemented)
-7. [Current State](#current-state)
-8. [Future Roadmap](#future-roadmap)
-9. [Known Issues & Limitations](#known-issues--limitations)
-10. [Development Setup](#development-setup)
-11. [Key Code Patterns](#key-code-patterns)
+6. [RAG & Knowledge Base System](#rag--knowledge-base-system)
+7. [Citations System](#citations-system)
+8. [Features Implemented](#features-implemented)
+9. [Current State](#current-state)
+10. [Future Roadmap](#future-roadmap)
+11. [Known Issues & Limitations](#known-issues--limitations)
+12. [Development Setup](#development-setup)
+13. [Docker Deployment](#docker-deployment)
+14. [Key Code Patterns](#key-code-patterns)
 
 ---
 
@@ -121,6 +144,8 @@ SanctumWriter/
 │   ├── components/              # React components
 │   │   ├── Chat/                # AI chat interface
 │   │   │   └── Chat.tsx         # Main chat component with streaming
+│   │   ├── Citations/           # Citation management
+│   │   │   └── CitationPanel.tsx # Add/edit citations, bibliography
 │   │   ├── Council/             # Council of Writers feature
 │   │   │   └── CouncilPanel.tsx # Multi-model review interface
 │   │   ├── Convert/             # Document conversion
@@ -134,34 +159,64 @@ SanctumWriter/
 │   │   │   └── FileTree.tsx     # Sidebar file list
 │   │   ├── Header/              # App header
 │   │   │   └── Header.tsx       # Model selector, settings, toggles
+│   │   ├── KnowledgeBase/       # RAG knowledge base
+│   │   │   └── KnowledgeBasePanel.tsx # Index documents, manage vectors
 │   │   ├── Outline/             # Document outline
 │   │   │   └── OutlinePanel.tsx # Heading navigation
+│   │   ├── Preview/             # Markdown preview
+│   │   │   └── Preview.tsx      # Live rendered preview
+│   │   ├── Project/             # Project management
+│   │   │   └── ProjectView.tsx  # Project organization UI
 │   │   ├── PromptLibrary/       # Prompt management
 │   │   │   └── PromptLibraryPanel.tsx # Save/reuse prompts
 │   │   ├── Research/            # Search/research panel
 │   │   │   └── ResearchPanel.tsx # SearXNG/Perplexica integration
+│   │   ├── SessionMemory/       # Conversation memory
+│   │   │   └── SessionMemoryPanel.tsx # View/manage memories
 │   │   ├── Settings/            # Settings modal
 │   │   │   └── Settings.tsx     # All settings tabs
+│   │   ├── Toast/               # Notifications
+│   │   │   └── Toast.tsx        # Toast notification component
 │   │   └── Workflow/            # Writing workflow
 │   │       └── WorkflowPanel.tsx # Checklist/progress tracker
 │   ├── globals.css              # Global styles & CSS variables
 │   ├── layout.tsx               # Root layout
 │   └── page.tsx                 # Main page component
 ├── lib/                         # Shared utilities & logic
+│   ├── citations/               # Citation management
+│   │   ├── formatter.ts         # Format citations (APA, MLA, etc.)
+│   │   ├── parser.ts            # Parse [@key] citations from markdown
+│   │   └── index.ts             # Module exports
 │   ├── council/                 # Council of Writers logic
 │   │   └── reviewPipeline.ts    # Review orchestration, model management
+│   ├── editor/                  # Editor utilities
+│   │   ├── operations.ts        # Document manipulation operations
+│   │   └── reviewAnnotations.ts # Review comment annotations
 │   ├── hardware/                # Hardware detection
 │   │   └── detect.ts            # GPU/VRAM detection via WebGL
 │   ├── llm/                     # LLM utilities
+│   │   ├── client.ts            # Ollama/LM Studio API client
 │   │   ├── modelManager.ts      # Model loading/unloading for VRAM management
 │   │   └── tools.ts             # Document operation tools for AI
+│   ├── rag/                     # RAG (Retrieval Augmented Generation)
+│   │   ├── chunker.ts           # Split documents into chunks
+│   │   ├── embeddings.ts        # Generate embeddings via Ollama
+│   │   ├── indexer.ts           # Orchestrate document indexing
+│   │   ├── retriever.ts         # Query vectors, build RAG prompts
+│   │   ├── sessionMemory.ts     # Conversation memory management
+│   │   ├── vectorStore.ts       # LanceDB vector storage
+│   │   └── index.ts             # Module exports
 │   ├── search/                  # Search integration
 │   │   └── searchService.ts     # Perplexica/SearXNG client
 │   ├── store/                   # Zustand stores
 │   │   ├── useAppStore.ts       # Main app state (documents, UI, focus mode)
+│   │   ├── useChatStore.ts      # Chat messages and state
+│   │   ├── useCitationStore.ts  # Citations and bibliography
 │   │   ├── useCouncilStore.ts   # Council of Writers state
 │   │   ├── useOutlineStore.ts   # Document outline state
+│   │   ├── useProjectStore.ts   # Project management state
 │   │   ├── usePromptLibraryStore.ts # Prompt library state
+│   │   ├── useRAGStore.ts       # RAG and session memory settings
 │   │   ├── useSearchStore.ts    # Research panel state
 │   │   ├── useSettingsStore.ts  # Settings, hardware, services, workspace
 │   │   └── useWorkflowStore.ts  # Writing workflow state
@@ -174,11 +229,20 @@ SanctumWriter/
 ├── types/                       # TypeScript type definitions
 │   └── council.ts               # Council types, reviewer configs
 ├── public/                      # Static assets
+├── documents/                   # Default workspace folder
+├── Dockerfile                   # Production Docker build
+├── Dockerfile.dev               # Development Docker build
+├── docker-compose.yml           # Production orchestration
+├── docker-compose.dev.yml       # Development orchestration
+├── .dockerignore                # Docker build exclusions
 ├── package.json                 # Dependencies & scripts
 ├── requirements.txt             # Python dependencies (Docling)
 ├── tailwind.config.ts           # Tailwind configuration
 ├── tsconfig.json                # TypeScript configuration
-├── DEVELOPMENT.md               # This file
+├── next.config.js               # Next.js config (includes standalone output)
+├── env.example                  # Environment variable template
+├── DEVELOPMENT.md               # This file (agent handoff document)
+├── ROADMAP.md                   # Feature roadmap and status
 └── WRITING_WORKFLOW.md          # User workflow guide
 ```
 
@@ -278,6 +342,63 @@ SanctumWriter/
 - addPrompt(prompt)                     // Save new prompt
 - editPrompt(id, updates)               // Modify existing prompt
 - deletePrompt(id)                      // Remove prompt
+```
+
+#### `useRAGStore.ts` - RAG & Knowledge Base
+```typescript
+// Key state:
+- ragSettings: RAGSettings              // Embedding model, chunk counts, etc.
+- sessionMemorySettings: SessionMemorySettings  // Auto-save, thresholds
+- indexedDocuments: IndexedDocument[]   // Tracked indexed files
+- isIndexing: boolean                   // Indexing in progress
+- showKnowledgeBasePanel: boolean       // Panel visibility
+- showSessionMemoryPanel: boolean       // Panel visibility
+
+// Key actions:
+- setRAGEnabled(enabled)                // Toggle RAG
+- setEmbeddingModel(model)              // Change embedding model
+- addIndexedDocument(doc)               // Track indexed file
+- clearCollectionData(collection)       // Clear vector collection
+```
+
+#### `useChatStore.ts` - Chat State
+```typescript
+// Key state:
+- messages: ChatMessage[]               // Chat history per document
+- isGenerating: boolean                 // AI response in progress
+- activeDocumentPath: string | null     // Current document context
+
+// Key actions:
+- addMessage(message)                   // Add to chat
+- clearMessages()                       // Clear chat history
+- setGenerating(status)                 // Update generation state
+```
+
+#### `useCitationStore.ts` - Citations
+```typescript
+// Key state:
+- citations: Citation[]                 // All saved citations
+- showCitationPanel: boolean            // Panel visibility
+- citationStyle: 'apa' | 'mla' | 'chicago' | 'harvard'
+
+// Key actions:
+- addCitation(citation)                 // Add new citation
+- updateCitation(key, updates)          // Modify citation
+- deleteCitation(key)                   // Remove citation
+- formatBibliography()                  // Generate formatted references
+```
+
+#### `useProjectStore.ts` - Project Management
+```typescript
+// Key state:
+- currentProject: Project | null        // Active project
+- projects: Project[]                   // All projects
+- projectDocuments: Document[]          // Documents in current project
+
+// Key actions:
+- createProject(name)                   // New project
+- setCurrentProject(id)                 // Switch projects
+- addDocumentToProject(path)            // Link document to project
 ```
 
 ### LLM Integration
@@ -382,6 +503,152 @@ countParagraphs(text)         // Paragraph count
 calculateFleschKincaid(text)  // Readability grade level
 calculateReadabilityScores(text) // Combined metrics
 ```
+
+---
+
+## RAG & Knowledge Base System
+
+The RAG (Retrieval Augmented Generation) system allows the AI to reference your documents and remember conversations.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    RAG Pipeline                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Document Input          Embedding              Storage      │
+│  ┌───────────┐          ┌─────────┐          ┌─────────┐   │
+│  │ Markdown  │──chunk──▶│ Ollama  │──embed──▶│ LanceDB │   │
+│  │ PDF/DOCX  │          │ nomic   │          │ Vector  │   │
+│  │ Web Pages │          │ embed   │          │ Store   │   │
+│  └───────────┘          └─────────┘          └─────────┘   │
+│                                                    │         │
+│  ┌─────────────────────────────────────────────────┘         │
+│  │                                                           │
+│  ▼  Retrieval                                               │
+│  ┌─────────────┐     ┌──────────────┐     ┌────────────┐   │
+│  │ User Query  │────▶│ Similarity   │────▶│ Top K      │   │
+│  │             │     │ Search       │     │ Results    │   │
+│  └─────────────┘     └──────────────┘     └────────────┘   │
+│                                                    │         │
+│                                                    ▼         │
+│                                           ┌────────────┐    │
+│                                           │ Inject to  │    │
+│                                           │ LLM Prompt │    │
+│                                           └────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Components (lib/rag/)
+
+| File | Purpose |
+|------|---------|
+| `chunker.ts` | Split documents into semantic chunks for embedding |
+| `embeddings.ts` | Generate embeddings via Ollama (nomic-embed-text) |
+| `vectorStore.ts` | LanceDB wrapper for storing/searching vectors |
+| `indexer.ts` | Orchestrate document indexing |
+| `retriever.ts` | Query vectors and build RAG prompts |
+| `sessionMemory.ts` | Save/retrieve conversation memories |
+
+### Collections
+
+```typescript
+type CollectionName = 'references' | 'sessions' | 'web_research';
+
+// references - User's knowledge base documents
+// sessions   - Conversation summaries & preferences
+// web_research - Indexed web search results
+```
+
+### Embedding Models
+
+```typescript
+const EMBEDDING_MODELS = {
+  'nomic-embed-text': { dimensions: 768, size: '274MB' },  // Default
+  'mxbai-embed-large': { dimensions: 1024, size: '670MB' },
+  'all-minilm': { dimensions: 384, size: '23MB' },        // Lightweight
+};
+```
+
+### Store: useRAGStore.ts
+
+```typescript
+interface RAGSettings {
+  enabled: boolean;               // Master toggle for RAG
+  embeddingModel: string;         // Which embedding model to use
+  maxRetrievedChunks: number;     // How many chunks to retrieve (default: 5)
+  minSimilarityScore: number;     // Threshold for relevance (default: 0.5)
+  maxTokensForContext: number;    // Token budget for context (default: 2000)
+  collections: CollectionName[];  // Which collections to search
+}
+
+interface SessionMemorySettings {
+  enabled: boolean;               // Enable conversation memory
+  autoSave: boolean;              // Auto-save conversation summaries
+  autoSaveThreshold: number;      // Messages before auto-save (default: 8)
+}
+```
+
+### Session Memory Flow
+
+```
+1. User has conversation about their document
+2. After N messages, system auto-summarizes conversation
+3. Summary embedded and stored in 'sessions' collection
+4. On next session, relevant memories retrieved
+5. AI has context about previous discussions
+```
+
+---
+
+## Citations System
+
+Manage references and generate bibliographies in multiple formats.
+
+### Components (lib/citations/)
+
+| File | Purpose |
+|------|---------|
+| `parser.ts` | Parse citation keys from markdown `[@key]` |
+| `formatter.ts` | Format citations as APA, MLA, Chicago, etc. |
+
+### Citation Format
+
+```markdown
+As noted by Smith [@smith2023], the phenomenon...
+
+## References
+<!-- Citations will be rendered here -->
+```
+
+### Store: useCitationStore.ts
+
+```typescript
+interface Citation {
+  key: string;          // Unique identifier [@smith2023]
+  type: 'book' | 'article' | 'website' | 'journal';
+  title: string;
+  authors: string[];
+  year: number;
+  url?: string;
+  publisher?: string;
+  journal?: string;
+  volume?: string;
+  pages?: string;
+}
+```
+
+### Supported Formats
+
+| Format | Output Example |
+|--------|----------------|
+| APA | Smith, J. (2023). *Title*. Publisher. |
+| MLA | Smith, John. *Title*. Publisher, 2023. |
+| Chicago | Smith, John. *Title*. Location: Publisher, 2023. |
+| Harvard | Smith, J., 2023. *Title*. Publisher. |
+
+---
 
 ### Export System (lib/utils/exportDocument.ts)
 
@@ -505,6 +772,40 @@ exportToMd(content, filename)    // Raw markdown
 - [x] Python script integration
 - [x] Conversion panel UI
 
+### RAG / Knowledge Base ✅
+- [x] Document indexing with chunking
+- [x] Embedding generation via Ollama (nomic-embed-text)
+- [x] LanceDB vector storage
+- [x] Semantic similarity search
+- [x] Multiple collections (references, sessions, web_research)
+- [x] Context injection into AI prompts
+- [x] Knowledge Base management panel
+- [x] Configurable chunk count and similarity threshold
+
+### Session Memory ✅
+- [x] Conversation summarization
+- [x] Memory storage in vector DB
+- [x] Relevant memory retrieval
+- [x] Auto-save conversations
+- [x] Per-document memory tracking
+- [x] Preference learning
+- [x] Session Memory panel
+
+### Citations & Bibliography ✅
+- [x] Citation key parsing ([@key] format)
+- [x] Multiple citation styles (APA, MLA, Chicago, Harvard)
+- [x] Citation management panel
+- [x] Auto-formatted bibliography generation
+- [x] Citation metadata storage
+
+### Docker Deployment ✅
+- [x] Production Dockerfile (multi-stage, optimized)
+- [x] Development Dockerfile (hot-reload)
+- [x] docker-compose.yml with Ollama profile
+- [x] Volume persistence for documents and vectors
+- [x] GPU support configuration
+- [x] Health checks
+
 ### Core Editor Features ✅
 - [x] CodeMirror 6 markdown editor
 - [x] Syntax highlighting
@@ -532,6 +833,10 @@ exportToMd(content, filename)    // Raw markdown
 10. **Document Export** - Multiple format support
 11. **Prompt Library** - Reusable prompt management
 12. **Workspace Selection** - Obsidian compatibility
+13. **RAG Knowledge Base** - Document indexing and retrieval
+14. **Session Memory** - AI remembers conversations
+15. **Citations** - Bibliography management with multiple styles
+16. **Docker Deployment** - Containerized for easy deployment
 
 ### What Needs Attention
 1. **Perplexica Integration** - Works but depends on Perplexica's configuration
@@ -549,18 +854,28 @@ exportToMd(content, filename)    // Raw markdown
 
 ## Future Roadmap
 
-### Medium Priority (Remaining)
+### Recently Completed ✅
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Session Memory** | AI remembers context across sessions | ✅ Complete |
+| **Citation Formats** | APA, MLA, Chicago style management | ✅ Complete |
+| **Bibliography Generation** | Automatic reference list | ✅ Complete |
+| **RAG Knowledge Base** | Document retrieval for AI context | ✅ Complete |
+| **Docker Deployment** | Containerized deployment | ✅ Complete |
+
+### Medium Priority (Next Up)
 | Feature | Description | Complexity |
 |---------|-------------|------------|
-| **Session Memory** | AI remembers context across browser sessions | Medium |
 | **Custom Personas** | AI writing styles/voices (editor, coach, critic) | Medium |
+| **Version History** | Local version snapshots with diff view | Medium |
+| **Multi-Document Projects** | Project-level organization | High |
 
 ### Lower Priority
 | Feature | Description | Complexity |
 |---------|-------------|------------|
-| **Citation Formats** | APA, MLA, Chicago style management | Medium |
-| **Bibliography Generation** | Automatic reference list | High |
-| **Multi-Document Projects** | Project-level organization | High |
+| **LaTeX Export** | Academic publishing format | Medium |
+| **ePub Export** | E-book format | Medium |
+| **Writing Goals** | Word count targets, session timers | Low |
 
 ### Deferred
 | Feature | Description | Notes |
@@ -638,6 +953,105 @@ docker run -d -p 8080:8080 searxng/searxng
 
 ---
 
+## Docker Deployment
+
+SanctumWriter can be fully containerized for easy deployment.
+
+### Docker Files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Production multi-stage build (~150MB) |
+| `Dockerfile.dev` | Development with hot-reload |
+| `docker-compose.yml` | Production orchestration |
+| `docker-compose.dev.yml` | Development with source mounting |
+| `.dockerignore` | Excludes node_modules, .next, etc. |
+
+### Quick Start
+
+```bash
+# Production (uses Ollama on host)
+docker-compose up -d
+
+# Production with Ollama in container
+docker-compose --profile ollama up -d
+docker exec sanctum-ollama ollama pull qwen3:latest
+
+# Development with hot-reload
+docker-compose -f docker-compose.dev.yml up
+
+# View logs
+docker-compose logs -f
+
+# Rebuild after changes
+docker-compose build --no-cache
+```
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                 Docker Compose                           │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────────┐      ┌──────────────────┐        │
+│  │ sanctum-writer   │      │ sanctum-ollama   │        │
+│  │ (Next.js App)    │◄────▶│ (Optional)       │        │
+│  │ Port: 3125       │      │ Port: 11434      │        │
+│  └──────────────────┘      └──────────────────┘        │
+│          │                                              │
+│          │ Volume Mounts                                │
+│          │                                              │
+│  ┌───────▼────────┐  ┌────────────────┐               │
+│  │ ./documents    │  │ sanctum-lancedb│               │
+│  │ (Workspace)    │  │ (Vector Data)  │               │
+│  └────────────────┘  └────────────────┘               │
+│                                                         │
+│  Connection to Host:                                    │
+│  - host.docker.internal:11434 (Ollama on host)         │
+│  - host.docker.internal:1234  (LM Studio on host)      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Environment Variables
+
+```env
+# .env file for Docker
+OLLAMA_URL=http://host.docker.internal:11434
+LMSTUDIO_URL=http://host.docker.internal:1234
+DEFAULT_PROVIDER=ollama
+DEFAULT_MODEL=llama3
+WORKSPACE_PATH=/app/documents
+```
+
+### Production Dockerfile Stages
+
+1. **deps** - Install npm dependencies (cached layer)
+2. **builder** - Build Next.js standalone output
+3. **runner** - Minimal runtime with Python for conversions
+
+### Key Configuration
+
+```javascript
+// next.config.js must include:
+output: 'standalone'  // Required for Docker
+```
+
+### GPU Support (NVIDIA)
+
+Uncomment in `docker-compose.yml`:
+```yaml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+```
+
+---
+
 ## Key Code Patterns
 
 ### Adding a New Reviewer
@@ -680,7 +1094,7 @@ docker run -d -p 8080:8080 searxng/searxng
 | Feature | Key Files |
 |---------|-----------|
 | **Main Layout** | `app/page.tsx` |
-| **AI Chat** | `app/components/Chat/Chat.tsx`, `lib/llm/tools.ts` |
+| **AI Chat** | `app/components/Chat/Chat.tsx`, `lib/llm/tools.ts`, `lib/store/useChatStore.ts` |
 | **Council** | `app/components/Council/CouncilPanel.tsx`, `lib/council/reviewPipeline.ts` |
 | **Editor** | `app/components/Editor/Editor.tsx` |
 | **Settings** | `app/components/Settings/Settings.tsx`, `lib/store/useSettingsStore.ts` |
@@ -689,6 +1103,56 @@ docker run -d -p 8080:8080 searxng/searxng
 | **Export** | `app/components/Export/ExportModal.tsx`, `lib/utils/exportDocument.ts` |
 | **Stats** | `app/components/Editor/WritingStatsBar.tsx`, `lib/utils/writingStats.ts` |
 | **Docling** | `app/components/Convert/ConvertPanel.tsx`, `scripts/convert_document.py` |
+| **RAG/Knowledge** | `app/components/KnowledgeBase/KnowledgeBasePanel.tsx`, `lib/rag/*`, `lib/store/useRAGStore.ts` |
+| **Session Memory** | `app/components/SessionMemory/SessionMemoryPanel.tsx`, `lib/rag/sessionMemory.ts` |
+| **Citations** | `app/components/Citations/CitationPanel.tsx`, `lib/citations/*`, `lib/store/useCitationStore.ts` |
+| **Projects** | `app/components/Project/ProjectView.tsx`, `lib/store/useProjectStore.ts` |
+| **Docker** | `Dockerfile`, `docker-compose.yml`, `.dockerignore` |
+
+---
+
+## Common Development Tasks
+
+### Adding a New Feature Panel
+
+1. Create component: `app/components/[FeatureName]/[FeatureName]Panel.tsx`
+2. Create store if needed: `lib/store/use[FeatureName]Store.ts`
+3. Add toggle state to store: `show[FeatureName]Panel: boolean`
+4. Add toggle button in `Header.tsx`
+5. Add panel rendering in `page.tsx`
+6. Export from `app/components/index.ts`
+
+### Adding API Functionality
+
+1. Create route: `app/api/[endpoint]/route.ts`
+2. Export handlers: `GET`, `POST`, `PUT`, `DELETE`
+3. Use `NextResponse.json()` for responses
+4. Handle errors with try/catch
+
+### Modifying AI Behavior
+
+1. System prompts: `app/components/Chat/Chat.tsx` (buildSystemPrompt)
+2. Tool definitions: `lib/llm/tools.ts`
+3. Tool execution: `Chat.tsx` (executeToolCall)
+
+### Working with RAG
+
+1. Indexing: Use functions from `lib/rag/indexer.ts`
+2. Retrieval: Use `retrieveContext()` from `lib/rag/retriever.ts`
+3. Store: `useRAGStore` for settings and state
+
+---
+
+## Troubleshooting for Developers
+
+| Issue | Solution |
+|-------|----------|
+| **Build fails with LanceDB** | Ensure Node 18+, may need `npm rebuild` |
+| **Embeddings fail** | Check Ollama is running, model pulled: `ollama pull nomic-embed-text` |
+| **CORS errors** | All external calls should go through `/api/` routes |
+| **State not persisting** | Check `partialize` in store's persist config |
+| **Docker can't connect to Ollama** | Use `host.docker.internal:11434` not `localhost` |
+| **Hot reload not working** | Use `docker-compose.dev.yml` with mounted volumes |
 
 ---
 
@@ -700,4 +1164,5 @@ This is a personal project. Feel free to fork and modify for your own use.
 
 ---
 
+*Last updated: December 7, 2025*  
 *This document should be updated whenever significant changes are made to the architecture or features.*
