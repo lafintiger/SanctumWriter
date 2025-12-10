@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorView } from '@codemirror/view';
-import { Editor, FileTree, Chat, Header, Preview, Toast, Settings, CouncilPanel, ResearchPanel } from './components';
+import { Editor, FileTree, Chat, Header, Preview, Toast, Settings, CouncilPanel, ResearchPanel, ImageStudioPanel } from './components';
 import { WorkflowPanel } from './components/Workflow/WorkflowPanel';
 import { WritingStatsBar } from './components/Editor/WritingStatsBar';
 import { OutlinePanel } from './components/Outline/OutlinePanel';
@@ -19,6 +19,7 @@ import { useOutlineStore } from '@/lib/store/useOutlineStore';
 import { usePromptLibraryStore } from '@/lib/store/usePromptLibraryStore';
 import { useRAGStore } from '@/lib/store/useRAGStore';
 import { useCitationStore } from '@/lib/store/useCitationStore';
+import { useImageStore } from '@/lib/store/useImageStore';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -40,6 +41,7 @@ export default function Home() {
   const { showPromptLibrary } = usePromptLibraryStore();
   const { showKnowledgeBasePanel, showSessionMemoryPanel } = useRAGStore();
   const { showCitationPanel } = useCitationStore();
+  const { showImageStudioPanel } = useImageStore();
   
   // Keyboard shortcuts for focus mode
   useEffect(() => {
@@ -260,6 +262,13 @@ export default function Home() {
         {showCitationPanel && !focusMode && (
           <div className="flex-shrink-0">
             <CitationPanel />
+          </div>
+        )}
+        
+        {/* Image Studio Panel - hidden in focus mode */}
+        {showImageStudioPanel && !focusMode && (
+          <div className="flex-shrink-0">
+            <ImageStudioPanel />
           </div>
         )}
 

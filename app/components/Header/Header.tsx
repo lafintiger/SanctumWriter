@@ -22,6 +22,7 @@ import {
   Database,
   Brain,
   BookMarked,
+  Image,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store/useAppStore';
@@ -33,6 +34,7 @@ import { useOutlineStore } from '@/lib/store/useOutlineStore';
 import { usePromptLibraryStore } from '@/lib/store/usePromptLibraryStore';
 import { useRAGStore } from '@/lib/store/useRAGStore';
 import { useCitationStore } from '@/lib/store/useCitationStore';
+import { useImageStore } from '@/lib/store/useImageStore';
 import { ExportModal } from '../Export/ExportModal';
 import { ConvertPanel } from '../Convert/ConvertPanel';
 
@@ -77,6 +79,12 @@ export function Header() {
     toggleCitationPanel,
     getAllCitations,
   } = useCitationStore();
+  
+  const {
+    showImageStudioPanel,
+    toggleImageStudioPanel,
+    status: imageStatus,
+  } = useImageStore();
   
   const citationCount = currentDocument ? getAllCitations(currentDocument.path).length : 0;
   const enabledReviewersCount = getEnabledReviewers().length;
@@ -393,6 +401,22 @@ export function Header() {
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[10px] rounded-full flex items-center justify-center">
               {citationCount}
             </span>
+          )}
+        </button>
+        
+        <button
+          onClick={toggleImageStudioPanel}
+          className={cn(
+            'p-1.5 rounded relative',
+            showImageStudioPanel
+              ? 'bg-pink-500/20 text-pink-500'
+              : 'hover:bg-border text-text-secondary hover:text-text-primary'
+          )}
+          title="Image Studio (ComfyUI)"
+        >
+          <Image className="w-5 h-5" />
+          {imageStatus.isGenerating && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-pink-500 rounded-full animate-pulse" />
           )}
         </button>
         
